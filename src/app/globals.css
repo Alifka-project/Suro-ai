@@ -1,26 +1,505 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ==========================================================================
+   SURO AI — Design System
+   Palette sampled from the reference boards:
+     02 Hòa Sắc   #0766A3 #41B0CC #8ED1C4 #C6AFE2 #FD9CC2
+     04 Gió Nhẹ   #2067A5 #6FAFD6 #8FD5D1 #C3A3E1 #FDA1C6
+     07 Nắng Mai  #3686D5 #69C2DC #96D9D2 #B5ABE6 #FEB5D5
+     09 Vườn Yên  #3793AF #7FC7C3 #ADDBC2 #C1AAE3 #FEA4C8
+   Light theme, aurora/web3 surfaces, glass cards.
+   ========================================================================== */
+
+@theme {
+  /* — Ink (text) — derived from the deep blue end of the ramp */
+  --color-ink-900: #06253c;
+  --color-ink-800: #0a3554;
+  --color-ink-700: #0f4a72;
+  --color-ink-600: #2c6288;
+  --color-ink-500: #517f9e;
+  --color-ink-400: #7c9fb7;
+  --color-ink-300: #a8c1d2;
+  --color-ink-200: #d3e0e9;
+  --color-ink-100: #eaf1f6;
+
+  /* — Abyss: the anchor blue (02/04) */
+  --color-abyss-700: #054d7d;
+  --color-abyss-600: #0766a3;
+  --color-abyss-500: #2067a5;
+  --color-abyss-400: #3c86bd;
+
+  /* — Azure (07) */
+  --color-azure-600: #2673c4;
+  --color-azure-500: #3686d5;
+  --color-azure-400: #6fafd6;
+  --color-azure-300: #9cc9e6;
+
+  /* — Aqua (02/07) */
+  --color-aqua-600: #2f9bb8;
+  --color-aqua-500: #41b0cc;
+  --color-aqua-400: #69c2dc;
+  --color-aqua-300: #96d6e8;
+
+  /* — Mint (02/04/07/09) */
+  --color-mint-600: #63bfae;
+  --color-mint-500: #8ed1c4;
+  --color-mint-400: #96d9d2;
+  --color-mint-300: #addbc2;
+  --color-mint-200: #c8e8dc;
+
+  /* — Lilac (02/04/07/09) */
+  --color-lilac-600: #9b8ad4;
+  --color-lilac-500: #b5abe6;
+  --color-lilac-400: #c3a3e1;
+  --color-lilac-300: #c6afe2;
+  --color-lilac-200: #ded3f2;
+
+  /* — Blush (02/04/07/09) */
+  --color-blush-600: #f97aac;
+  --color-blush-500: #fd9cc2;
+  --color-blush-400: #fea4c8;
+  --color-blush-300: #feb5d5;
+  --color-blush-200: #ffd2e6;
+
+  /* — Surfaces */
+  --color-paper: #ffffff;
+  --color-canvas: #f7fafc;
+  --color-haze: #eef5fa;
+
+  /* — Extra breakpoint for large phones (default set starts at sm/40rem) */
+  --breakpoint-xs: 25rem;
+
+  /* — Type */
+  --font-display: var(--font-sora), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono-jet), ui-monospace, SFMono-Regular, monospace;
+
+  /* — Motion */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* — Keyframe-backed animation utilities */
+  --animate-aurora: aurora 24s ease-in-out infinite;
+  --animate-aurora-slow: aurora 38s ease-in-out infinite reverse;
+  --animate-float: float 9s ease-in-out infinite;
+  --animate-float-slow: float 14s ease-in-out infinite;
+  --animate-drift: drift 20s linear infinite;
+  --animate-shimmer: shimmer 3.2s linear infinite;
+  --animate-spin-slow: spin 22s linear infinite;
+  --animate-pulse-ring: pulse-ring 3s ease-out infinite;
+  --animate-marquee: marquee 42s linear infinite;
+  --animate-caret: caret 1.05s steps(1) infinite;
+  --animate-rise: rise 0.9s var(--ease-out-expo) both;
+  --animate-gradient-pan: gradient-pan 8s ease infinite;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@keyframes aurora {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+  }
+  33% {
+    transform: translate3d(4%, -5%, 0) scale(1.12) rotate(6deg);
+  }
+  66% {
+    transform: translate3d(-4%, 4%, 0) scale(0.95) rotate(-5deg);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-16px) rotate(2deg);
+  }
+}
+
+@keyframes drift {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 120px 120px;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -180% 0;
+  }
+  100% {
+    background-position: 180% 0;
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.55;
+  }
+  70% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes caret {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes gradient-pan {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* ==========================================================================
+   Base
+   ========================================================================== */
+
+@layer base {
+  * {
+    border-color: color-mix(in oklab, var(--color-ink-200) 70%, transparent);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+    scroll-padding-top: 5.5rem;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink-800);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: clip;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    color: var(--color-ink-900);
+    letter-spacing: -0.025em;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  ::selection {
+    background-color: var(--color-lilac-200);
+    color: var(--color-ink-900);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-azure-500);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+
+  /* Inputs never zoom the viewport on iOS: 16px minimum on small screens */
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+
+  @media (min-width: 640px) {
+    input,
+    textarea,
+    select {
+      font-size: inherit;
+    }
+  }
+}
+
+/* ==========================================================================
+   Utilities
+   ========================================================================== */
+
+@utility text-gradient {
+  background-image: linear-gradient(
+    100deg,
+    var(--color-abyss-600) 0%,
+    var(--color-azure-500) 26%,
+    var(--color-aqua-500) 48%,
+    var(--color-lilac-400) 72%,
+    var(--color-blush-500) 100%
+  );
+  background-size: 220% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility glass {
+  background: color-mix(in oklab, white 72%, transparent);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  border: 1px solid color-mix(in oklab, white 85%, transparent);
+  box-shadow:
+    0 1px 0 0 rgb(255 255 255 / 0.9) inset,
+    0 18px 44px -22px rgb(7 38 60 / 0.28),
+    0 2px 8px -4px rgb(7 38 60 / 0.12);
+}
+
+@utility glass-strong {
+  background: color-mix(in oklab, white 88%, transparent);
+  backdrop-filter: blur(26px) saturate(165%);
+  -webkit-backdrop-filter: blur(26px) saturate(165%);
+  border: 1px solid rgb(255 255 255 / 0.9);
+  box-shadow:
+    0 1px 0 0 rgb(255 255 255 / 0.95) inset,
+    0 28px 64px -28px rgb(7 38 60 / 0.32),
+    0 3px 10px -5px rgb(7 38 60 / 0.14);
+}
+
+/* NOTE: `grain` is defined as a plain component rule below, not an @utility.
+   An @utility that sets `position` would land later in the cascade than
+   Tailwind's own `absolute`/`relative` utilities and silently override them. */
+
+@utility mask-fade-x {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 8%,
+    black 92%,
+    transparent
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 8%,
+    black 92%,
+    transparent
+  );
+}
+
+@utility mask-fade-b {
+  -webkit-mask-image: linear-gradient(to bottom, black 65%, transparent);
+  mask-image: linear-gradient(to bottom, black 65%, transparent);
+}
+
+@layer components {
+  /* Grain overlay used on large aurora fields */
+  .grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.18;
+    mix-blend-mode: soft-light;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  }
+
+  /* Hairline grid, very light — the "protocol" texture */
+  .grid-field {
+    background-image:
+      linear-gradient(
+        to right,
+        color-mix(in oklab, var(--color-ink-300) 26%, transparent) 1px,
+        transparent 1px
+      ),
+      linear-gradient(
+        to bottom,
+        color-mix(in oklab, var(--color-ink-300) 26%, transparent) 1px,
+        transparent 1px
+      );
+    background-size: 62px 62px;
+  }
+
+  .btn-primary {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    border-radius: 9999px;
+    padding: 0.875rem 1.6rem;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 0.95rem;
+    line-height: 1.2;
+    white-space: nowrap;
+    color: white;
+    isolation: isolate;
+    overflow: hidden;
+    background-image: linear-gradient(
+      100deg,
+      var(--color-abyss-600),
+      var(--color-azure-500) 42%,
+      var(--color-aqua-500) 72%,
+      var(--color-lilac-500)
+    );
+    background-size: 200% auto;
+    box-shadow:
+      0 10px 26px -10px rgb(32 103 165 / 0.7),
+      0 1px 0 0 rgb(255 255 255 / 0.35) inset;
+    transition:
+      background-position 0.6s var(--ease-out-expo),
+      transform 0.25s var(--ease-out-expo),
+      box-shadow 0.25s var(--ease-out-expo);
+  }
+
+  .btn-primary:hover {
+    background-position: right center;
+    transform: translateY(-2px);
+    box-shadow:
+      0 18px 34px -12px rgb(32 103 165 / 0.62),
+      0 1px 0 0 rgb(255 255 255 / 0.45) inset;
+  }
+
+  .btn-primary:active {
+    transform: translateY(0);
+  }
+
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 9999px;
+    padding: 0.875rem 1.5rem;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 0.95rem;
+    line-height: 1.2;
+    white-space: nowrap;
+    color: var(--color-ink-800);
+    background: color-mix(in oklab, white 70%, transparent);
+    border: 1px solid color-mix(in oklab, var(--color-ink-200) 90%, transparent);
+    backdrop-filter: blur(12px);
+    transition:
+      border-color 0.25s ease,
+      background 0.25s ease,
+      transform 0.25s var(--ease-out-expo);
+  }
+
+  .btn-ghost:hover {
+    border-color: var(--color-aqua-400);
+    background: white;
+    transform: translateY(-2px);
+  }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-ink-600);
+  }
+
+  .field {
+    width: 100%;
+    border-radius: 0.9rem;
+    border: 1px solid color-mix(in oklab, var(--color-ink-200) 95%, transparent);
+    background: color-mix(in oklab, white 82%, transparent);
+    padding: 0.8rem 0.95rem;
+    color: var(--color-ink-900);
+    transition:
+      border-color 0.2s ease,
+      box-shadow 0.2s ease,
+      background 0.2s ease;
+  }
+
+  .field::placeholder {
+    color: var(--color-ink-400);
+  }
+
+  .field:hover {
+    border-color: var(--color-ink-300);
+  }
+
+  .field:focus {
+    outline: none;
+    background: white;
+    border-color: var(--color-azure-400);
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--color-azure-400) 22%, transparent);
+  }
+
+  .field[aria-invalid="true"] {
+    border-color: var(--color-blush-600);
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--color-blush-500) 24%, transparent);
+  }
+
+  .label {
+    display: block;
+    margin-bottom: 0.4rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--color-ink-700);
+  }
+}
+
+/* Hide scrollbar on horizontal rails but keep scrolling */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* ==========================================================================
+   Reduced motion — kill every decorative loop, keep the layout intact
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }

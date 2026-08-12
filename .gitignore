@@ -32,6 +32,11 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...but the template carries no secrets and documents what Vercel needs
+!.env.example
+
+# local agent/tooling settings
+.claude/settings.local.json
 
 # vercel
 .vercel
