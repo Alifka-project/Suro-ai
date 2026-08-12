@@ -136,6 +136,18 @@ export function PromptConsole() {
     [phase, reduced]
   );
 
+  /**
+   * Grow the textarea to fit its content instead of reserving a fixed three
+   * rows. A CSS min-height holds the floor so the empty state still reads as an
+   * input, and it caps out before the console can push the CTA off-screen.
+   */
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 190)}px`;
+  }, [value]);
+
   // Bring the answer into view on mobile, where it renders below the fold.
   useEffect(() => {
     if (phase !== "answered" || !resultRef.current) return;
@@ -212,10 +224,10 @@ export function PromptConsole() {
                 run(value);
               }
             }}
-            rows={3}
+            rows={1}
             maxLength={900}
-            placeholder="Describe the bottleneck slowing your supply chain down — the more specific, the sharper the answer."
-            className="mt-3 w-full resize-none border-0 bg-transparent p-0 text-[1rem] leading-relaxed text-ink-900 outline-none placeholder:text-ink-400 sm:text-[1.05rem]"
+            placeholder="Describe the bottleneck slowing your supply chain down…"
+            className="mt-2.5 block max-h-[190px] min-h-[3.9rem] w-full resize-none overflow-y-auto border-0 bg-transparent p-0 text-[1rem] leading-relaxed text-ink-900 outline-none placeholder:text-ink-400 sm:min-h-[3.4rem] sm:text-[1.05rem]"
           />
 
           <div className="mt-3 flex flex-col gap-3 border-t border-ink-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
