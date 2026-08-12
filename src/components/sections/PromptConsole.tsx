@@ -230,15 +230,29 @@ export function PromptConsole() {
             className="mt-2.5 block max-h-[190px] min-h-[3.9rem] w-full resize-none overflow-y-auto border-0 bg-transparent p-0 text-[1rem] leading-relaxed text-ink-900 outline-none placeholder:text-ink-400 sm:min-h-[3.4rem] sm:text-[1.05rem]"
           />
 
+          {/* The hint must be able to shrink and the buttons must not. A
+              nowrap hint plus a nowrap button exceeded this row between roughly
+              1024px and 1180px — where the two-column hero is active but the
+              console column is at its narrowest — and pushed the CTA out past
+              the card's clipped edge.
+
+              The hint stays short deliberately: max-w-6xl caps this row at
+              ~509px, and the button takes 199px of it, so a longer string could
+              not fit at any viewport width without ellipsizing. "Enter submits"
+              is the non-obvious half anyway — Shift+Enter is the convention
+              people already reach for. */}
           <div className="mt-3 flex flex-col gap-3 border-t border-ink-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
             {phase === "idle" && (
-              <p className="hidden items-center gap-1.5 whitespace-nowrap font-mono text-[0.68rem] text-ink-400 sm:flex">
+              <p className="hidden min-w-0 flex-1 items-center gap-1.5 font-mono text-[0.68rem] text-ink-400 sm:flex">
                 <CornerDownLeft className="h-3 w-3 shrink-0" aria-hidden="true" />
-                Enter to analyse · Shift + Enter for a new line
+                <span className="truncate">Enter to analyse</span>
               </p>
             )}
 
-            <div className="flex items-center gap-2 sm:justify-end">
+            {/* ml-auto, not justify-between alone: once the hint is dropped in
+                the answered state this becomes the only flex child, and
+                justify-between would park it on the left. */}
+            <div className="flex shrink-0 items-center gap-2 sm:ml-auto sm:justify-end">
               {phase === "answered" && (
                 <button
                   type="button"
