@@ -1,12 +1,13 @@
 "use client";
 
+import Image from "next/image";
 import { Mail, MapPin, Clock, MessageCircle, ArrowUp } from "lucide-react";
 import { Reveal } from "@/components/ui/Reveal";
 import { ContactForm } from "@/components/sections/ContactForm";
 
 /** ⚠️ Replace with your real contact details before launch. */
 const CONTACT = {
-  email: "hello@suro.ai",
+  email: "hello@suloai.com",
   whatsapp: "+62 812 0000 0000",
   location: "Jakarta, Indonesia — working across APAC, EMEA & the Americas",
   hours: "Replies within one business day",
@@ -141,13 +142,16 @@ export function Footer() {
           <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
             <div className="lg:col-span-2">
               <a href="#top" className="flex items-center gap-2.5">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-linear-to-br from-abyss-600 via-azure-500 to-lilac-500">
-                  <span className="font-display text-[0.95rem] font-extrabold text-white">
-                    S
-                  </span>
-                </span>
-                <span className="font-display text-[1.05rem] font-bold tracking-tight text-ink-900">
-                  Suro<span className="text-gradient">AI</span>
+                <Image
+                  src="/brand/suloai-mark.png"
+                  alt=""
+                  aria-hidden="true"
+                  width={226}
+                  height={240}
+                  className="h-9 w-auto"
+                />
+                <span className="font-display text-[1.15rem] font-bold tracking-[0.02em] text-ink-900">
+                  SULO<span className="text-gradient">AI</span>
                 </span>
               </a>
               <p className="mt-3 max-w-xs text-[0.85rem] leading-relaxed text-ink-500">
@@ -179,7 +183,7 @@ export function Footer() {
 
           <div className="mt-10 flex flex-col items-center justify-between gap-4 border-t border-ink-100 py-6 sm:flex-row">
             <p className="text-center font-mono text-[0.7rem] text-ink-400 sm:text-left">
-              © {new Date().getFullYear()} Suro AI. All rights reserved.
+              © {new Date().getFullYear()} SULOAI. All rights reserved.
             </p>
             <a
               href="#top"

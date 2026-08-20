@@ -15,7 +15,7 @@ export const runtime = "nodejs";
  * Required env for live sending (.env.local):
  *   RESEND_API_KEY=re_xxxxxxxx
  *   CONTACT_TO_EMAIL=you@yourdomain.com
- *   CONTACT_FROM_EMAIL="Suro AI <noreply@yourdomain.com>"   # domain must be verified in Resend
+ *   CONTACT_FROM_EMAIL="SULOAI <noreply@suloai.com>"   # domain must be verified in Resend
  */
 
 /** Naive per-IP limiter. Fine for a single instance; swap for Redis/Upstash if you scale out. */
@@ -142,7 +142,7 @@ export async function POST(request: Request) {
 
   const apiKey = process.env.RESEND_API_KEY;
   const to = process.env.CONTACT_TO_EMAIL;
-  const from = process.env.CONTACT_FROM_EMAIL ?? "Suro AI <onboarding@resend.dev>";
+  const from = process.env.CONTACT_FROM_EMAIL ?? "SULOAI <onboarding@resend.dev>";
 
   if (!apiKey || !to) {
     // No mail configured — keep the lead rather than losing it.

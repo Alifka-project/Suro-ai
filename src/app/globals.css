@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ==========================================================================
-   SURO AI — Design System
+   SULOAI — Design System
    Palette sampled from the reference boards:
      02 Hòa Sắc   #0766A3 #41B0CC #8ED1C4 #C6AFE2 #FD9CC2
      04 Gió Nhẹ   #2067A5 #6FAFD6 #8FD5D1 #C3A3E1 #FDA1C6
@@ -69,9 +69,10 @@
   /* — Extra breakpoint for large phones (default set starts at sm/40rem) */
   --breakpoint-xs: 25rem;
 
-  /* — Type */
-  --font-display: var(--font-sora), ui-sans-serif, system-ui, sans-serif;
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  /* — Type. SULOAI carries both display and body; JetBrains Mono stays for
+       the eyebrow labels, since the brand face has no monospace cut. */
+  --font-display: var(--font-suloai), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-suloai), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-mono-jet), ui-monospace, SFMono-Regular, monospace;
 
   /* — Motion */

@@ -1,4 +1,4 @@
-# Suro AI — landing page
+# SULOAI — landing page
 
 Automation & applied-AI landing page for a supply-chain consultancy. Next.js 16
 (App Router) · React 19 · Tailwind v4 · Framer Motion · TypeScript.
@@ -47,11 +47,11 @@ real email, fill in `.env.local`:
 ```
 RESEND_API_KEY=re_xxxxxxxx
 CONTACT_TO_EMAIL=you@yourdomain.com
-CONTACT_FROM_EMAIL="Suro AI <noreply@yourdomain.com>"
+CONTACT_FROM_EMAIL="SULOAI <noreply@suloai.com>"
 ```
 
 The sending domain must be verified in Resend first. For testing you can use
-`Suro AI <onboarding@resend.dev>` as the sender.
+`SULOAI <onboarding@resend.dev>` as the sender.
 
 The route also has a honeypot field and a simple per-IP rate limit (5/min). The
 limiter is in-memory, which is correct for a single instance — move it to Redis
@@ -89,7 +89,47 @@ The palette is sampled directly from the reference boards and lives in the
 | `lilac` | `#B5ABE6` `#C6AFE2` `#C3A3E1` |
 | `blush` | `#FD9CC2` `#FEB5D5` `#FEA4C8` |
 
-Type: Sora (display) · Inter (body) · JetBrains Mono (labels).
+### Typography
+
+**SULOAI** carries both display and body text, self-hosted from
+`src/app/fonts/` via `next/font/local` (4 weights: 300/400/500/700, woff2).
+JetBrains Mono remains for the small mono eyebrows and data labels, since the
+brand face has no monospace cut.
+
+The face is Saira (SIL Open Font License) re-exported and renamed by the brand's
+designer — see `src/app/fonts/SULOAI-FONT-README.txt`. OFL permits that,
+including commercial use. One nit: the PostScript name inside the files still
+reads `SUROAI-Regular` from an earlier naming pass. Harmless on the web (the CSS
+family name is what matters) but worth fixing before handing the files to a
+print or design team.
+
+### Brand assets
+
+| File | Use |
+| --- | --- |
+| `public/brand/suloai-mark.png` | The S mark, used in the header and footer lockups |
+| `public/brand/suloai-lockup.png` | Full vertical lockup — OpenGraph / social sharing |
+| `public/brand/suloai-mark-square.png` | 512px padded square, for app icons or app stores |
+| `src/app/icon.png`, `src/app/apple-icon.png` | Favicon and iOS touch icon |
+
+The header pairs the **mark only** with `SULOAI` as live text rather than
+dropping in the supplied lockup. The lockup is vertical — mark stacked over
+wordmark — so at the ~36px height a site header allows, its wordmark renders as
+unreadable mush. Live text stays crisp at every size, is selectable, and is
+readable by search engines.
+
+The mark is the flowing ribbon S, per the client's choice. Two notes on it: the
+favicon is cropped tight and lightly sharpened, because a detailed 3D ribbon
+loses definition at the 16–32px a browser tab renders — a flatter mark would
+read more sharply there if you ever want to revisit it. And the crop drops a
+stray fragment of the wordmark's dotted "i" that sat inside the mark's bounding
+box in the original file.
+
+Note the supplied logo files are PNG bitmaps wrapped in an SVG container (a
+colour image plus a luminance mask), not true vector, so they don't scale
+indefinitely. The assets above were composited to transparent PNG and trimmed
+from those originals. If you ever need large-format print, ask your designer for
+a genuine vector version.
 
 Reusable pieces: `AuroraField` (the animated background), `SpotlightCard`
 (pointer-following glass card), `Reveal`/`RevealGroup` (scroll entrances),

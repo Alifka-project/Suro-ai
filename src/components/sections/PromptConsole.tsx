@@ -203,7 +203,7 @@ export function PromptConsole() {
                 <span className="absolute inline-flex h-full w-full rounded-full bg-mint-600 animate-pulse-ring" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-mint-600" />
               </span>
-              Suro Solution Engine
+              SULOAI Solution Engine
             </span>
             <span className="hidden font-mono text-[0.65rem] text-ink-400 sm:block">
               free · no signup

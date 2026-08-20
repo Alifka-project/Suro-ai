@@ -749,7 +749,7 @@ export function ContactForm() {
                     {...register("consent")}
                   />
                   <span className="text-[0.8rem] leading-relaxed text-ink-600">
-                    I agree to Suro AI contacting me about this enquiry. My
+                    I agree to SULOAI contacting me about this enquiry. My
                     details won&apos;t be sold or added to a marketing list.
                     <FieldError message={errors.consent?.message} />
                   </span>

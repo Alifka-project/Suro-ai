@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { AnimatePresence, motion, useScroll, useMotionValueEvent } from "framer-motion";
 import { Menu, X, ArrowRight } from "lucide-react";
 import { easeOutExpo } from "@/lib/motion";
@@ -52,22 +53,25 @@ export function Nav() {
               scrolled ? "glass-strong" : "border border-transparent"
             }`}
           >
+            {/* Mark as an image, wordmark as live text: the supplied lockup is
+                vertical, so its wordmark would be illegible at header height.
+                This keeps the name crisp, selectable and searchable. */}
             <a
               href="#top"
               className="group flex items-center gap-2.5"
-              aria-label="Suro AI — back to top"
+              aria-label="SULOAI — back to top"
             >
-              <span className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-linear-to-br from-abyss-600 via-azure-500 to-lilac-500 shadow-[0_8px_18px_-10px_rgb(32_103_165_/_0.9)]">
-                <span
-                  aria-hidden="true"
-                  className="absolute inset-0 bg-linear-to-tr from-transparent via-white/45 to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100"
-                />
-                <span className="relative font-display text-[0.95rem] font-extrabold text-white">
-                  S
-                </span>
-              </span>
-              <span className="font-display text-[1.05rem] font-bold tracking-tight text-ink-900">
-                Suro<span className="text-gradient">AI</span>
+              <Image
+                src="/brand/suloai-mark.png"
+                alt=""
+                aria-hidden="true"
+                width={226}
+                height={240}
+                priority
+                className="h-8 w-auto transition-transform duration-500 group-hover:scale-105 sm:h-9"
+              />
+              <span className="font-display text-[1.15rem] font-bold tracking-[0.02em] text-ink-900">
+                SULO<span className="text-gradient">AI</span>
               </span>
             </a>
 

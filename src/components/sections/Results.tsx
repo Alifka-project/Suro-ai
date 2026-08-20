@@ -129,7 +129,9 @@ export function Results() {
                   </span>
                 </div>
 
-                <p className="mt-5 font-display text-[2.6rem] font-extrabold leading-none text-gradient sm:text-[3rem]">
+                {/* 700 is the heaviest cut SULOAI ships — font-extrabold (800)
+                    would silently resolve to the same file. */}
+                <p className="mt-5 font-display text-[2.6rem] font-bold leading-none text-gradient sm:text-[3rem]">
                   <CountUp value={c.stat} suffix={c.suffix} />
                 </p>
                 <p className="mt-1.5 text-[0.8rem] text-ink-500">{c.statLabel}</p>
