@@ -1,16 +1,15 @@
 "use client";
 
 import Image from "next/image";
-import { Mail, MapPin, Clock, MessageCircle, ArrowUp } from "lucide-react";
+import { Mail, MapPin, MessageCircle, ArrowUp } from "lucide-react";
 import { Reveal } from "@/components/ui/Reveal";
 import { ContactForm } from "@/components/sections/ContactForm";
 
-/** ⚠️ Replace with your real contact details before launch. */
+/** ⚠️ The WhatsApp number is still a placeholder — swap in the real one. */
 const CONTACT = {
-  email: "hello@suloai.com",
-  whatsapp: "+62 812 0000 0000",
-  location: "Jakarta, Indonesia — working across APAC, EMEA & the Americas",
-  hours: "Replies within one business day",
+  email: "suloai.automation@gmail.com",
+  whatsapp: "+971 50 000 0000",
+  location: "Dubai, United Arab Emirates — working across the GCC, EMEA & APAC",
 };
 
 const NAV_GROUPS = [
@@ -28,6 +27,7 @@ const NAV_GROUPS = [
     title: "Company",
     links: [
       { label: "About us", href: "#intro" },
+      { label: "Pain points", href: "#pain-points" },
       { label: "How we work", href: "#process" },
       { label: "Results", href: "#results" },
       { label: "FAQ", href: "#faq" },
@@ -96,7 +96,6 @@ export function Footer() {
                     href: `https://wa.me/${CONTACT.whatsapp.replace(/[^\d]/g, "")}`,
                   },
                   { icon: MapPin, label: "Based in", value: CONTACT.location },
-                  { icon: Clock, label: "Response time", value: CONTACT.hours },
                 ].map(({ icon: Icon, label, value, href }) => (
                   <li key={label} className="flex items-start gap-3">
                     <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl glass">

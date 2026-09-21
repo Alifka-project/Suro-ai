@@ -1,24 +1,30 @@
 "use client";
 
 const CAPABILITIES = [
-  "Power Automate",
-  "Excel VBA",
-  "Power Apps",
-  "Claude API",
-  "Power BI",
-  "Document AI",
-  "SAP",
-  "Dynamics 365",
-  "NetSuite",
-  "Odoo",
-  "EDI 850 / 856",
-  "Power Query",
+  "Excel",
+  "CSV",
+  "PDF",
+  "Outlook",
+  "Email",
   "SharePoint",
-  "Azure Functions",
-  "SQL",
-  "WhatsApp Business",
-  "RAG pipelines",
-  "Python forecasting",
+  "OneDrive",
+  "ERP",
+  "CRM",
+  "Web Portals",
+  "Databases",
+  "APIs",
+  "Power Automate",
+  "Browser Automation",
+  "Internal Systems",
+  "Power Apps",
+  "Maintenance",
+  "AI Agents",
+  "Internal Chatbots",
+  "Document Assistants",
+  "Data Assistants",
+  "Workflow Bots",
+  "VBA",
+  "Microsoft Integration",
 ];
 
 /**
@@ -28,7 +34,7 @@ const CAPABILITIES = [
 export function CapabilityMarquee() {
   return (
     <section
-      aria-label="Technologies we build with"
+      aria-label="Tools, systems and formats we work with"
       className="relative border-y border-ink-100/80 bg-white/50 py-5 backdrop-blur-sm"
     >
       <div className="mask-fade-x overflow-hidden">
