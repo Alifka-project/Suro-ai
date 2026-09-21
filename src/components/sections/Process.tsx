@@ -100,7 +100,7 @@ export function Process() {
             whileInView={{ scaleY: 1 }}
             viewport={{ once: true, amount: 0.2 }}
             transition={{ duration: 1.4, ease: easeOutExpo }}
-            className="absolute left-[1.42rem] top-2 hidden h-[calc(100%-2rem)] w-[2px] origin-top rounded-full bg-linear-to-b from-abyss-600 via-aqua-500 to-blush-500 opacity-30 sm:block lg:hidden"
+            className="absolute left-[21px] top-2 hidden h-[calc(100%-2rem)] w-[2px] origin-top rounded-full bg-linear-to-b from-abyss-600 via-aqua-500 to-blush-500 opacity-30 sm:block lg:hidden"
           />
           <motion.div
             aria-hidden="true"
@@ -108,7 +108,7 @@ export function Process() {
             whileInView={{ scaleX: 1 }}
             viewport={{ once: true, amount: 0.3 }}
             transition={{ duration: 1.4, ease: easeOutExpo }}
-            className="absolute left-0 top-[2.15rem] hidden h-[2px] w-full origin-left rounded-full bg-linear-to-r from-abyss-600 via-aqua-500 to-blush-500 opacity-30 lg:block"
+            className="absolute top-[21px] hidden h-[2px] origin-left rounded-full bg-linear-to-r from-abyss-600 via-aqua-500 to-blush-500 opacity-30 lg:left-[22px] lg:right-[calc((100%-4.5rem)/4-22px)] lg:block"
           />
 
           <ol className="grid gap-5 sm:gap-6 lg:grid-cols-4 lg:gap-6">
@@ -128,7 +128,11 @@ export function Process() {
                   className="relative flex gap-4 sm:gap-5 lg:block"
                 >
                   {/* Node */}
-                  <div className="relative shrink-0">
+                  {/* Sized to the node in both axes: as a flex child its
+                      height would stretch to the row, and as an lg block its
+                      width would fill the column — either way the inset-0 glow
+                      smears instead of sitting behind the icon. */}
+                  <div className="relative h-11 w-11 shrink-0">
                     <span
                       className="relative z-10 flex h-11 w-11 items-center justify-center rounded-2xl text-white shadow-[0_12px_24px_-14px_rgb(7_38_60_/_0.8)]"
                       style={{
@@ -139,7 +143,7 @@ export function Process() {
                     </span>
                     <span
                       aria-hidden="true"
-                      className="absolute inset-0 -z-0 rounded-2xl opacity-30 blur-md"
+                      className="absolute inset-0 z-0 rounded-2xl opacity-40 blur-md"
                       style={{ backgroundColor: `rgb(${step.glow})` }}
                     />
                   </div>
