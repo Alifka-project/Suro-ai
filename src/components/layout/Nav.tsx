@@ -8,7 +8,7 @@ import { easeOutExpo } from "@/lib/motion";
 
 const LINKS = [
   { href: "#intro", label: "About" },
-  { href: "#pain-points", label: "Pain points" },
+  { href: "#root-causes", label: "Root causes" },
   { href: "#services", label: "Services" },
   { href: "#process", label: "Process" },
   { href: "#results", label: "Results" },

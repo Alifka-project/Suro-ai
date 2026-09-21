@@ -27,7 +27,7 @@ const NAV_GROUPS = [
     title: "Company",
     links: [
       { label: "About us", href: "#intro" },
-      { label: "Pain points", href: "#pain-points" },
+      { label: "Root causes", href: "#root-causes" },
       { label: "How we work", href: "#process" },
       { label: "Results", href: "#results" },
       { label: "FAQ", href: "#faq" },

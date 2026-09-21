@@ -3,7 +3,7 @@ import { Footer } from "@/components/layout/Footer";
 import { Hero } from "@/components/sections/Hero";
 import { CapabilityMarquee } from "@/components/sections/CapabilityMarquee";
 import { IntroVideo } from "@/components/sections/IntroVideo";
-import { PainPoints } from "@/components/sections/PainPoints";
+import { RootCauses } from "@/components/sections/RootCauses";
 import { Services } from "@/components/sections/Services";
 import { Process } from "@/components/sections/Process";
 import { Results } from "@/components/sections/Results";
@@ -17,7 +17,7 @@ export default function Home() {
         <Hero />
         <CapabilityMarquee />
         <IntroVideo />
-        <PainPoints />
+        <RootCauses />
         <Services />
         <Process />
         <Results />
