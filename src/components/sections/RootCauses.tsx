@@ -121,7 +121,7 @@ export function RootCauses() {
         />
 
         <ol className="mt-10 space-y-3.5 sm:mt-14">
-          {ROOT_CAUSES.map((c, i) => {
+          {ROOT_CAUSES.map((c) => {
             const Icon = c.icon;
 
             return (
