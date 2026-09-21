@@ -120,44 +120,63 @@ export function RootCauses() {
           lede="Overtime is the symptom. These are the causes underneath it — and every one of them is fixable. Recognise yours, and we will tell you what it takes to remove it."
         />
 
-        <ol className="mt-10 space-y-3.5 sm:mt-12">
-          {ROOT_CAUSES.map((c) => {
-            const Icon = c.icon;
+        {/* Zigzag timeline: a spine down the centre at lg with cards
+            alternating either side, each sliding in from its own side. Below
+            lg it collapses to one column with the spine on the left. */}
+        <div className="relative mt-10 sm:mt-14">
+          <motion.span
+            aria-hidden="true"
+            initial={{ scaleY: 0 }}
+            whileInView={{ scaleY: 1 }}
+            viewport={{ once: true, amount: 0.15 }}
+            transition={{ duration: 1.6, ease: easeOutExpo }}
+            className="absolute inset-y-0 left-[21px] w-[2px] origin-top rounded-full bg-linear-to-b from-abyss-600 via-aqua-500 to-blush-500 opacity-25 lg:left-1/2 lg:-translate-x-1/2"
+          />
 
-            return (
-              <motion.li
-                key={c.n}
-                initial={{ opacity: 0, y: 28 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.35 }}
-                transition={{ duration: 0.6, ease: easeOutExpo }}
-                className="group relative overflow-hidden rounded-3xl glass p-5 transition-shadow duration-500 sm:p-6"
-              >
-                {/* Accent edge, drawn in as the row arrives */}
-                <motion.span
-                  aria-hidden="true"
-                  initial={{ scaleY: 0 }}
-                  whileInView={{ scaleY: 1 }}
-                  viewport={{ once: true, amount: 0.35 }}
-                  transition={{ duration: 0.7, delay: 0.1, ease: easeOutExpo }}
-                  className="absolute inset-y-0 left-0 w-1 origin-top"
-                  style={{
-                    backgroundImage: `linear-gradient(to bottom, rgb(${c.glow}), rgb(${c.glow} / 0.25))`,
-                  }}
-                />
+          <ol className="space-y-5 lg:space-y-8">
+            {ROOT_CAUSES.map((c, i) => {
+              const Icon = c.icon;
+              const left = i % 2 === 0;
 
-                <div className="flex gap-4 sm:gap-5">
-                  <span
-                    className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white shadow-[0_10px_22px_-12px_rgb(7_38_60_/_0.6)]"
+              return (
+                <li
+                  key={c.n}
+                  className="relative pl-16 lg:grid lg:grid-cols-2 lg:gap-x-16 lg:pl-0"
+                >
+                  {/* Node sits on the spine, level with the card title */}
+                  <motion.span
+                    initial={{ scale: 0, opacity: 0 }}
+                    whileInView={{ scale: 1, opacity: 1 }}
+                    viewport={{ once: true, amount: 0.6 }}
+                    transition={{ duration: 0.5, ease: easeOutExpo }}
+                    className="absolute left-0 top-5 z-10 flex h-11 w-11 items-center justify-center rounded-2xl text-white shadow-[0_10px_22px_-12px_rgb(7_38_60_/_0.6)] lg:left-1/2 lg:-translate-x-1/2"
                     style={{
                       backgroundImage: `linear-gradient(140deg, rgb(${c.glow}), rgb(${c.glow} / 0.6))`,
                     }}
                   >
                     <Icon className="h-5 w-5" aria-hidden="true" />
-                  </span>
+                  </motion.span>
 
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline gap-2.5">
+                  <motion.div
+                    initial={{ opacity: 0, y: 24, x: left ? -24 : 24 }}
+                    whileInView={{ opacity: 1, y: 0, x: 0 }}
+                    viewport={{ once: true, amount: 0.35 }}
+                    transition={{ duration: 0.65, ease: easeOutExpo }}
+                    className={`relative overflow-hidden rounded-3xl glass p-5 sm:p-6 ${
+                      left ? "lg:col-start-1 lg:text-right" : "lg:col-start-2 lg:row-start-1"
+                    }`}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`absolute inset-y-0 w-1 ${left ? "left-0 lg:left-auto lg:right-0" : "left-0"}`}
+                      style={{
+                        backgroundImage: `linear-gradient(to bottom, rgb(${c.glow}), rgb(${c.glow} / 0.25))`,
+                      }}
+                    />
+
+                    <div
+                      className={`flex items-baseline gap-2.5 ${left ? "lg:justify-end" : ""}`}
+                    >
                       <span className="font-mono text-[0.7rem] font-medium text-ink-400">
                         {c.n}
                       </span>
@@ -170,17 +189,15 @@ export function RootCauses() {
                       {c.line}
                     </p>
 
-                    {/* Signals fade in just behind the row, so the card reads as
-                        unfolding on scroll rather than appearing all at once. */}
                     <motion.ul
                       initial="hidden"
                       whileInView="show"
                       viewport={{ once: true, amount: 0.35 }}
                       variants={{
                         hidden: {},
-                        show: { transition: { staggerChildren: 0.05, delayChildren: 0.18 } },
+                        show: { transition: { staggerChildren: 0.05, delayChildren: 0.2 } },
                       }}
-                      className="mt-3 flex flex-wrap gap-1.5"
+                      className={`mt-3 flex flex-wrap gap-1.5 ${left ? "lg:justify-end" : ""}`}
                     >
                       {c.signals.map((sig) => (
                         <motion.li
@@ -197,7 +214,11 @@ export function RootCauses() {
                       ))}
                     </motion.ul>
 
-                    <p className="mt-3.5 flex items-start gap-2 text-[0.82rem] leading-snug text-ink-500">
+                    <p
+                      className={`mt-3.5 flex items-start gap-2 text-[0.82rem] leading-snug text-ink-500 ${
+                        left ? "lg:flex-row-reverse" : ""
+                      }`}
+                    >
                       <span
                         aria-hidden="true"
                         className="mt-[0.4rem] h-1 w-1 shrink-0 rounded-full"
@@ -205,12 +226,12 @@ export function RootCauses() {
                       />
                       {c.cost}
                     </p>
-                  </div>
-                </div>
-              </motion.li>
-            );
-          })}
-        </ol>
+                  </motion.div>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
 
         <motion.p
           initial={{ opacity: 0, y: 14 }}
