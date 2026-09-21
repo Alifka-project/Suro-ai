@@ -43,7 +43,7 @@ export function Faq() {
   return (
     <section
       id="faq"
-      className="relative isolate overflow-hidden px-4 py-20 sm:px-6 sm:py-28 lg:px-8"
+      className="relative isolate overflow-hidden px-4 py-14 sm:px-6 sm:py-18 lg:px-8"
     >
       <div
         aria-hidden="true"

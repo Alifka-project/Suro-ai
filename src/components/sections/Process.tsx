@@ -61,7 +61,7 @@ export function Process() {
   return (
     <section
       id="process"
-      className="relative isolate overflow-hidden px-4 py-20 sm:px-6 sm:py-28 lg:px-8"
+      className="relative isolate overflow-hidden px-4 py-14 sm:px-6 sm:py-18 lg:px-8"
     >
       <div
         aria-hidden="true"
@@ -92,7 +92,7 @@ export function Process() {
           lede="Every engagement runs the same way, whether it's a two-week Excel rebuild or a six-month AI programme. You know the price before we write a line of code."
         />
 
-        <div className="relative mt-12 sm:mt-16">
+        <div className="relative mt-10 sm:mt-12">
           {/* Spine — vertical on mobile, horizontal on desktop */}
           <motion.div
             aria-hidden="true"

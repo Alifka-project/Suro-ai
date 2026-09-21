@@ -83,7 +83,7 @@ export function IntroVideo() {
   return (
     <section
       id="intro"
-      className="relative isolate overflow-hidden px-4 py-20 sm:px-6 sm:py-28 lg:px-8"
+      className="relative isolate overflow-hidden px-4 py-14 sm:px-6 sm:py-18 lg:px-8"
     >
       <Orb
         className="-left-24 top-10 hidden lg:block"

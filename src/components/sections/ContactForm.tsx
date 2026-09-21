@@ -300,16 +300,19 @@ export function ContactForm() {
           />
         </div>
 
+        {/* No AnimatePresence around the step panels. With mode="wait" the
+            next step only mounts once the previous one finishes exiting, so a
+            paused rAF (backgrounded tab, a dropped frame) could leave the
+            header on the new step with the old step's fields still rendered —
+            and the form stuck there. Keying on `step` swaps immediately and
+            lets the incoming panel animate itself in. */}
         <div className="relative">
-          <AnimatePresence mode="wait" initial={false} custom={direction}>
             {/* ── Step 1 ──────────────────────────────────────────── */}
             {step === 0 && (
               <motion.div
                 key="step-0"
-                custom={direction}
                 initial={{ opacity: 0, x: direction * 28 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: direction * -28 }}
                 transition={{ duration: 0.4, ease: easeOutExpo }}
                 className="space-y-5"
               >
@@ -501,10 +504,8 @@ export function ContactForm() {
             {step === 1 && (
               <motion.div
                 key="step-1"
-                custom={direction}
                 initial={{ opacity: 0, x: direction * 28 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: direction * -28 }}
                 transition={{ duration: 0.4, ease: easeOutExpo }}
                 className="space-y-5"
               >
@@ -634,10 +635,8 @@ export function ContactForm() {
             {step === 2 && (
               <motion.div
                 key="step-2"
-                custom={direction}
                 initial={{ opacity: 0, x: direction * 28 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: direction * -28 }}
                 transition={{ duration: 0.4, ease: easeOutExpo }}
                 className="space-y-5"
               >
@@ -774,7 +773,6 @@ export function ContactForm() {
                 </AnimatePresence>
               </motion.div>
             )}
-          </AnimatePresence>
         </div>
 
         {/* ── Controls ─────────────────────────────────────────────── */}

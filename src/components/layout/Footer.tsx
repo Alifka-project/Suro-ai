@@ -39,7 +39,7 @@ export function Footer() {
   return (
     <footer
       id="contact"
-      className="relative isolate overflow-hidden px-4 pt-20 sm:px-6 sm:pt-28 lg:px-8"
+      className="relative isolate overflow-hidden px-4 pt-14 sm:px-6 sm:pt-18 lg:px-8"
     >
       {/* Aurora bed */}
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10">

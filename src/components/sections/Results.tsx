@@ -92,7 +92,7 @@ export function Results() {
   return (
     <section
       id="results"
-      className="relative isolate overflow-hidden px-4 py-20 sm:px-6 sm:py-28 lg:px-8"
+      className="relative isolate overflow-hidden px-4 py-14 sm:px-6 sm:py-18 lg:px-8"
     >
       <div className="relative mx-auto max-w-6xl">
         <SectionHeading
@@ -105,7 +105,7 @@ export function Results() {
           lede="Three representative engagements. Every number is measured against a baseline we captured in week one — because an automation you can't measure is a story, not a result."
         />
 
-        <div className="mt-12 grid gap-5 lg:grid-cols-3">
+        <div className="mt-10 grid gap-5 lg:grid-cols-3">
           {CASES.map((c, i) => (
             <motion.div
               key={c.headline}

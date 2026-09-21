@@ -88,7 +88,7 @@ export function RootCauses() {
   return (
     <section
       id="root-causes"
-      className="relative isolate overflow-hidden px-4 py-20 sm:px-6 sm:py-28 lg:px-8"
+      className="relative isolate overflow-hidden px-4 py-14 sm:px-6 sm:py-18 lg:px-8"
     >
       <div
         aria-hidden="true"
@@ -120,7 +120,7 @@ export function RootCauses() {
           lede="Overtime is the symptom. These are the causes underneath it — and every one of them is fixable. Recognise yours, and we will tell you what it takes to remove it."
         />
 
-        <ol className="mt-10 space-y-3.5 sm:mt-14">
+        <ol className="mt-10 space-y-3.5 sm:mt-12">
           {ROOT_CAUSES.map((c) => {
             const Icon = c.icon;
 

@@ -177,7 +177,7 @@ export function Services() {
   return (
     <section
       id="services"
-      className="relative isolate overflow-hidden px-4 py-20 sm:px-6 sm:py-28 lg:px-8"
+      className="relative isolate overflow-hidden px-4 py-14 sm:px-6 sm:py-18 lg:px-8"
     >
       {/* Section wash */}
       <div
@@ -313,7 +313,7 @@ export function Services() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.4 }}
           transition={{ duration: 0.7, ease: easeOutExpo }}
-          className="mt-10 flex flex-col items-center gap-3 text-center sm:mt-12"
+          className="mt-8 flex flex-col items-center gap-3 text-center sm:mt-10"
         >
           <p className="text-[0.95rem] text-ink-600">
             Not sure which one your problem needs?{" "}
