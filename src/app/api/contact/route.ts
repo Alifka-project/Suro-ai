@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { contactSchema, type ContactInput } from "@/lib/contact-schema";
+import { db } from "@/lib/db";
 
 export const runtime = "nodejs";
 
 /**
  * Lead intake.
+ *
+ * Every valid submission is saved as a CRM lead, then announced by email with
+ * a link straight to that lead in the admin dashboard. The two steps are
+ * independent on purpose: if the database is down the email still goes out,
+ * and if email fails the lead is still saved — an enquiry is only lost if
+ * both fail, and then it is logged in full.
  *
  * Sends through Resend when RESEND_API_KEY is present. Without a key the route
  * still validates and accepts the submission and logs it to the server console,
@@ -57,7 +64,10 @@ function row(label: string, value?: string | string[]): string {
     </tr>`;
 }
 
-function buildEmail(data: ContactInput): string {
+function buildEmail(
+  data: ContactInput,
+  { saved, dashboardUrl }: { saved: boolean; dashboardUrl: string | null },
+): string {
   const isCompany = data.clientType === "company";
 
   return `
@@ -90,6 +100,15 @@ function buildEmail(data: ContactInput): string {
           <p style="margin:0 0 6px;color:#517f9e;font:500 12px/1.5 -apple-system,Segoe UI,sans-serif">The problem, in their words</p>
           <p style="margin:0;color:#06253c;font:400 14px/1.7 -apple-system,Segoe UI,sans-serif;white-space:pre-wrap">${escapeHtml(data.message)}</p>
         </div>
+        ${
+          !saved
+            ? `<p style="margin:22px 0 0;color:#b45309;font:500 12px/1.5 -apple-system,Segoe UI,sans-serif">Heads-up: this lead could not be saved to the dashboard database, so it only exists in this email.</p>`
+            : dashboardUrl
+            ? `<div style="margin-top:22px">
+          <a href="${escapeHtml(dashboardUrl)}" style="display:inline-block;background:linear-gradient(100deg,#0766A3,#3686D5 45%,#41B0CC);color:#fff;text-decoration:none;font:600 14px/1 -apple-system,Segoe UI,sans-serif;padding:13px 20px;border-radius:12px">Open lead in dashboard &rarr;</a>
+        </div>`
+            : ""
+        }
       </div>
     </div>
   </div>`;
@@ -140,6 +159,38 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   }
 
+  // 1. Save the lead. A failure here must not stop the email below.
+  let leadId: string | null = null;
+  try {
+    const lead = await db.lead.create({
+      data: {
+        clientType: data.clientType === "company" ? "COMPANY" : "INDIVIDUAL",
+        fullName: data.fullName,
+        email: data.email,
+        phone: data.phone,
+        country: data.country,
+        city: data.city,
+        contactPreference: data.contactPreference,
+        companyName: data.companyName || null,
+        role: data.role || null,
+        companySize: data.companySize ?? null,
+        industry: data.industry ?? null,
+        services: data.services,
+        systems: data.systems || null,
+        timeline: data.timeline,
+        budget: data.budget,
+        message: data.message,
+      },
+      select: { id: true },
+    });
+    leadId = lead.id;
+  } catch (err) {
+    console.error("[contact] could not save lead to database:", err);
+  }
+
+  const appUrl = (process.env.APP_URL ?? "").replace(/\/$/, "");
+  const dashboardUrl = leadId && appUrl ? `${appUrl}/admin/crm/${leadId}` : null;
+
   const apiKey = process.env.RESEND_API_KEY;
   const to = process.env.CONTACT_TO_EMAIL;
   const from = process.env.CONTACT_FROM_EMAIL ?? "SULOAI <onboarding@resend.dev>";
@@ -149,8 +200,11 @@ export async function POST(request: Request) {
     console.warn(
       "[contact] RESEND_API_KEY or CONTACT_TO_EMAIL missing; logging lead instead of emailing."
     );
-    console.info("[contact] lead:", JSON.stringify(data, null, 2));
-    return NextResponse.json({ ok: true, delivered: false });
+    if (!leadId) {
+      // Neither channel worked — keep the full lead in the logs so it is recoverable.
+      console.info("[contact] lead (unsaved, unsent):", JSON.stringify(data, null, 2));
+    }
+    return NextResponse.json({ ok: true, saved: !!leadId, delivered: false });
   }
 
   try {
@@ -164,11 +218,13 @@ export async function POST(request: Request) {
           ? ` (${data.companyName})`
           : ""
       } · ${data.budget}`,
-      html: buildEmail(data),
+      html: buildEmail(data, { saved: !!leadId, dashboardUrl }),
     });
 
     if (error) {
       console.error("[contact] Resend rejected the send:", error);
+      // Saved to the dashboard, so the enquiry is safe — don't alarm the visitor.
+      if (leadId) return NextResponse.json({ ok: true, saved: true, delivered: false });
       console.info("[contact] lead (undelivered):", JSON.stringify(data, null, 2));
       return NextResponse.json(
         {
@@ -180,9 +236,10 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ ok: true, delivered: true });
+    return NextResponse.json({ ok: true, saved: !!leadId, delivered: true });
   } catch (err) {
     console.error("[contact] unexpected failure:", err);
+    if (leadId) return NextResponse.json({ ok: true, saved: true, delivered: false });
     console.info("[contact] lead (undelivered):", JSON.stringify(data, null, 2));
     return NextResponse.json(
       {

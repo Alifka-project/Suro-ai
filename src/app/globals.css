@@ -17,6 +17,9 @@
   --color-ink-700: #0f4a72;
   --color-ink-600: #2c6288;
   --color-ink-500: #517f9e;
+  /* Admin secondary text: the lightest ink that still meets WCAG AA 4.5:1
+     on white, canvas AND haze. ink-400 (2.8:1) is for icons/placeholders only. */
+  --color-ink-550: #447596;
   --color-ink-400: #7c9fb7;
   --color-ink-300: #a8c1d2;
   --color-ink-200: #d3e0e9;
@@ -503,4 +506,38 @@
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ==========================================================================
+   Print — admin quotes & invoices
+   ========================================================================== */
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+
+  html,
+  body {
+    background: white !important;
+  }
+
+  /* Keep brand colours on badges, totals and gradient rules when printing. */
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+/* ==========================================================================
+   Admin dashboard
+   ========================================================================== */
+
+/* Secondary text inside /admin meets WCAG AA. ink-500 (#517f9e) is 4.3:1 on
+   white; within the admin tree it resolves to ink-550, which passes on white,
+   canvas and haze. Tailwind v4 utilities read the variable at runtime, so this
+   re-points every text-ink-500 in the dashboard without touching the landing page. */
+.admin-surface {
+  --color-ink-500: var(--color-ink-550);
 }

@@ -40,9 +40,10 @@ code change. For anything above ~15 MB, host it externally and change
 
 ## Contact form email
 
-The form works out of the box: without credentials it validates, accepts the
-submission, and logs the lead to the server console so nothing is lost. To send
-real email, fill in `.env.local`:
+Every submission is saved as a lead in the admin CRM (see
+[Admin dashboard](#admin-dashboard)). Email is an extra notification on top: without
+credentials the form still validates, saves the lead, and simply skips the email.
+To send real email, fill in `.env.local`:
 
 ```
 RESEND_API_KEY=re_xxxxxxxx
@@ -147,3 +148,88 @@ typewriter and count-up both render their final value immediately in that mode.
 Content is never gated on an animation completing — the hero's blueprint and CTA
 reveal on a timer, not on the typing finishing, so a backgrounded tab can't
 strand a visitor on a half-written answer.
+
+---
+
+## Admin dashboard
+
+A private dashboard at **`/admin`** for analytics, CRM, billing and project
+management. It is not linked from anywhere on the public site.
+
+| Page | What it does |
+| --- | --- |
+| `/admin` | Analytics — leads, pipeline value, revenue collected, outstanding and overdue invoices, active projects |
+| `/admin/crm` | Every contact-form enquiry as a lead: pipeline status, notes, deal value, linked quotes/invoices/projects |
+| `/admin/billing` | Quotations and tax invoices in AED with 5% VAT, quote-to-invoice conversion, printable / PDF documents |
+| `/admin/projects` | Board of client projects with tasks, progress, due dates and invoiced-vs-value |
+
+### How a lead flows in
+
+1. A visitor submits the contact form.
+2. `/api/contact` saves it as a **CRM lead** (status *New*).
+3. The notification email includes an **"Open lead in dashboard"** button linking to
+   `/admin/crm/<id>`. If you are signed out, you are taken to the login page and
+   returned to that lead afterwards.
+
+Saving and emailing are independent: if the database is unavailable the email
+still goes out (flagged as unsaved), and if email fails the lead is still saved.
+
+### Environment variables
+
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | Postgres connection string (Neon, Vercel Postgres, …) |
+| `ADMIN_PASSWORD` | The dashboard password. Use a long, unique value. |
+| `SESSION_SECRET` | Signs session cookies. **At least 32 characters**; the app refuses to start without it. Generate one with `openssl rand -base64 32`. |
+| `APP_URL` | Your public site URL, e.g. `https://suloai.com` — used for the dashboard link in lead emails |
+| `RESEND_API_KEY`, `CONTACT_TO_EMAIL`, `CONTACT_FROM_EMAIL` | Lead notification email (see above) |
+
+### Deploying with Neon (recommended)
+
+1. Create a free project at [neon.tech](https://neon.tech) and copy the **pooled**
+   connection string.
+2. In Vercel → Settings → Environment Variables, add `DATABASE_URL`,
+   `ADMIN_PASSWORD`, `SESSION_SECRET` and `APP_URL`.
+3. Create the tables once, from your machine:
+
+   ```bash
+   DATABASE_URL="<your neon url>" npx prisma migrate deploy
+   ```
+
+4. Redeploy. `postinstall` runs `prisma generate` automatically on Vercel.
+
+Never run `npm run db:seed` against production — the seeder refuses to run
+unless `DATABASE_URL` points at `localhost`, and everything it creates is tagged
+`source = "demo"`.
+
+### Local development
+
+```bash
+npm run db:migrate   # apply migrations to your local DATABASE_URL
+npm run db:seed      # optional demo data (localhost only)
+npm run db:studio    # browse the database
+```
+
+### Security model
+
+- **Sign-in:** one admin password, compared in constant time, exchanged for a
+  signed (HS256) HTTP-only session cookie that lasts 7 days. Login attempts are
+  rate-limited per IP.
+- **Every read and every mutation is authorised**, not just the page shell.
+  Next.js 16 documents both the proxy and layouts as insufficient on their own
+  (layouts don't re-run on client navigation; Server Actions are public POST
+  endpoints), so `requireAdmin()` in `src/lib/admin/dal.ts` is called at the top
+  of every admin page and every Server Action. `src/proxy.ts` adds an early
+  redirect for signed-out visitors and `noindex` headers on top.
+- **Post-login redirects** only accept `/admin/...` paths, so the `?next=`
+  parameter can't be used as an open redirect.
+- **Money** is stored as integer fils (1 AED = 100 fils) and VAT as basis points,
+  so totals never drift from floating-point rounding.
+
+### Dependency notes
+
+`npm audit` reports a *high* advisory in `deepmerge-ts`, reached only through the
+Prisma **CLI** (`prisma` → `@prisma/config`). It is not in the runtime import
+graph — `@prisma/client` has no dependencies — and it only ever merges the
+project's own Prisma config, so it isn't exploitable in production. npm's
+suggested "fix" is a downgrade to Prisma 6.12, which would be a worse trade.

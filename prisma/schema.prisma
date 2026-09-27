@@ -1,0 +1,226 @@
+// SULOAI admin — data model.
+//
+// Money is stored as INTEGER FILS (1 AED = 100 fils), never as Float or
+// Decimal. Floats drift on VAT arithmetic, and Prisma's Decimal objects can't
+// be passed from Server to Client Components without manual conversion.
+// VAT is stored in basis points: 500 = 5.00%.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── CRM ─────────────────────────────────────────────────────────────────────
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL
+  WON
+  LOST
+}
+
+enum ClientType {
+  COMPANY
+  INDIVIDUAL
+}
+
+model Lead {
+  id                 String     @id @default(cuid())
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  status             LeadStatus @default(NEW)
+  source             String     @default("website")
+
+  clientType         ClientType
+  fullName           String
+  email              String
+  phone              String
+  country            String
+  city               String
+  contactPreference  String
+
+  companyName        String?
+  role               String?
+  companySize        String?
+  industry           String?
+
+  services           String[]
+  systems            String?
+  timeline           String
+  budget             String
+  message            String
+
+  /// Admin's own estimate of deal size, in fils.
+  estimatedValueFils Int?
+
+  notes    Note[]
+  quotes   Quote[]
+  invoices Invoice[]
+  projects Project[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  body      String
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+}
+
+// ─── Billing ─────────────────────────────────────────────────────────────────
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  VOID
+}
+
+model Quote {
+  id         String      @id @default(cuid())
+  number     String      @unique
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  status     QuoteStatus @default(DRAFT)
+  issueDate  DateTime    @default(now())
+  validUntil DateTime
+  currency   String      @default("AED")
+  vatBps     Int         @default(500)
+  notes      String?
+
+  /// Client snapshot — documents stay accurate even if the lead is edited later.
+  clientName    String
+  clientEmail   String
+  clientCompany String?
+
+  leadId  String?
+  lead    Lead?      @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  items   LineItem[]
+  invoice Invoice?
+
+  @@index([status])
+}
+
+model Invoice {
+  id        String        @id @default(cuid())
+  number    String        @unique
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  status    InvoiceStatus @default(DRAFT)
+  issueDate DateTime      @default(now())
+  dueDate   DateTime
+  paidAt    DateTime?
+  currency  String        @default("AED")
+  vatBps    Int           @default(500)
+  notes     String?
+
+  clientName    String
+  clientEmail   String
+  clientCompany String?
+
+  leadId    String?
+  lead      Lead?      @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  quoteId   String?    @unique
+  quote     Quote?     @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  projectId String?
+  project   Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  items     LineItem[]
+
+  @@index([status])
+  @@index([dueDate])
+}
+
+model LineItem {
+  id             String   @id @default(cuid())
+  description    String
+  /// Quantity may be fractional (e.g. 1.5 days).
+  quantity       Float
+  unitPriceFils  Int
+  position       Int      @default(0)
+
+  quoteId   String?
+  quote     Quote?   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  invoiceId String?
+  invoice   Invoice? @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([quoteId])
+  @@index([invoiceId])
+}
+
+// ─── Projects ────────────────────────────────────────────────────────────────
+
+enum ProjectStatus {
+  PLANNING
+  IN_PROGRESS
+  REVIEW
+  DONE
+  ON_HOLD
+}
+
+enum TaskStatus {
+  TODO
+  DOING
+  DONE
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  name        String
+  description String?
+  status      ProjectStatus @default(PLANNING)
+  startDate   DateTime?
+  dueDate     DateTime?
+  valueFils   Int?
+
+  leadId   String?
+  lead     Lead?     @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  tasks    Task[]
+  invoices Invoice[]
+
+  @@index([status])
+}
+
+model Task {
+  id        String     @id @default(cuid())
+  createdAt DateTime   @default(now())
+  title     String
+  status    TaskStatus @default(TODO)
+  dueDate   DateTime?
+  position  Int        @default(0)
+  projectId String
+  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+// ─── Infrastructure ──────────────────────────────────────────────────────────
+
+/// Atomic per-year document sequences ("quote-2026" -> 14). An upsert with
+/// increment is a single statement in Postgres, so two documents created at
+/// the same moment can never be handed the same number.
+model Counter {
+  key   String @id
+  value Int    @default(0)
+}
