@@ -1,16 +1,18 @@
+import type { ActivityType, Prisma } from "@prisma/client";
 import { LEAD_PIPELINE } from "@/lib/admin/labels";
+import { ACTIVITY_TYPE, activityState, type ActivityState } from "@/lib/admin/pipeline";
+import { BUSINESS_TIME_ZONE, daysFromToday, dueHint } from "@/lib/admin/time";
 
 /*
  * Pure CRM helpers. No database, no "server-only" — safe to import from both
  * Server and Client Components inside this module.
  *
  * Only CRM-specific logic lives here. Shared rules come from src/lib/admin:
- * invoice overdue status (invoices.ts), money input (money.ts), dates, badge
- * tone dots and initials (labels.ts, time.ts).
+ * pipeline stages and activity states (pipeline.ts), money input (money.ts),
+ * dates (time.ts), badge tone dots and initials (labels.ts).
  */
 
 export type LeadStatusKey = (typeof LEAD_PIPELINE)[number];
-export type CrmView = "table" | "board";
 
 export function isLeadStatus(value: unknown): value is LeadStatusKey {
   return typeof value === "string" && (LEAD_PIPELINE as readonly string[]).includes(value);
@@ -21,25 +23,35 @@ export function firstParam(value: string | string[] | undefined): string | undef
   return Array.isArray(value) ? value[0] : value;
 }
 
-/** Builds a /admin/crm URL, leaving defaults out so links stay short and shareable. */
-export function crmHref({
-  status,
-  q,
-  view,
-  page,
-}: {
-  status?: string | null;
-  q?: string;
-  view?: CrmView;
-  page?: number;
-}): string {
+/** Builds a /admin/crm (leads list) URL, leaving defaults out so links stay short and shareable. */
+export function crmHref({ status, q, page }: { status?: string | null; q?: string; page?: number }): string {
   const sp = new URLSearchParams();
-  if (view === "board") sp.set("view", "board");
   if (status) sp.set("status", status);
   if (q) sp.set("q", q);
   if (page && page > 1) sp.set("page", String(page));
   const qs = sp.toString();
   return qs ? `/admin/crm?${qs}` : "/admin/crm";
+}
+
+/**
+ * Search across the opportunity name, contact, company and email. Shared by
+ * the leads list and the pipeline so both find the same records.
+ *
+ * Prisma's `contains` becomes ILIKE '%…%' without escaping, so "%" and "_" in
+ * the query would act as wildcards ("_" alone matched every lead). Backslash
+ * is Postgres's default LIKE escape character.
+ */
+export function leadSearchWhere(q: string): Prisma.LeadWhereInput {
+  if (!q) return {};
+  const term = q.replace(/[\\%_]/g, (c) => `\\${c}`);
+  return {
+    OR: [
+      { title: { contains: term, mode: "insensitive" } },
+      { fullName: { contains: term, mode: "insensitive" } },
+      { companyName: { contains: term, mode: "insensitive" } },
+      { email: { contains: term, mode: "insensitive" } },
+    ],
+  };
 }
 
 /** "Company name", or "Individual" for private clients. */
@@ -50,9 +62,48 @@ export function companyLabel(lead: { companyName: string | null; clientType: str
 
 export function sourceLabel(source: string): string {
   if (source === "website") return "Website form";
+  if (source === "manual") return "Added manually";
   if (source === "demo") return "Demo data";
   return source;
 }
+
+// ─── Activities ──────────────────────────────────────────────────────────────
+
+const shortDate = new Intl.DateTimeFormat("en-GB", { timeZone: BUSINESS_TIME_ZONE, day: "numeric", month: "short" });
+
+/** What a list row or pipeline card says about an opportunity's next activity. */
+export type ActivityBrief = {
+  state: ActivityState;
+  /** "Call: Discuss the scope", or just "Call" when the summary is the type. */
+  label: string;
+  /** "Due today", "Due in 3 days", "2 days overdue". */
+  due: string;
+  /** Compact visible text beside the icon: "2d late", "Today", "Tomorrow", "12 Oct". */
+  short: string;
+};
+
+/**
+ * Describes an open activity on the business (Dubai) calendar. Pass the
+ * earliest-due open activity: it is also the most urgent one, so its state is
+ * the opportunity's worst state (see worstActivityState in pipeline.ts).
+ */
+export function describeActivity(
+  activity: { type: ActivityType; summary: string; dueDate: Date | string },
+  now: Date,
+): ActivityBrief {
+  const typeLabel = ACTIVITY_TYPE[activity.type].label;
+  const summary = activity.summary.trim();
+  const days = daysFromToday(activity.dueDate, now);
+  return {
+    state: activityState(activity.dueDate, now),
+    label: summary && summary !== typeLabel ? `${typeLabel}: ${summary}` : typeLabel,
+    due: dueHint(activity.dueDate, now),
+    short:
+      days < 0 ? `${-days}d late` : days === 0 ? "Today" : days === 1 ? "Tomorrow" : shortDate.format(new Date(activity.dueDate)),
+  };
+}
+
+// ─── Contact links ───────────────────────────────────────────────────────────
 
 /**
  * wa.me wants the full international number as digits only: no "+", no

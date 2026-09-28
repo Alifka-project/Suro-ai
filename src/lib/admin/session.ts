@@ -1,12 +1,22 @@
 import "server-only";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
-import { createHash, timingSafeEqual } from "node:crypto";
 
 export const SESSION_COOKIE = "suloai_admin";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-type SessionPayload = { role: "admin"; expiresAt: number };
+/**
+ * What the signed cookie carries. `sub` is the AdminUser id and `ver` its
+ * sessionVersion at sign-in: requireAdmin() re-reads the account on every
+ * request and refuses the cookie once the account is deactivated or its
+ * version moves on (password change / "sign out everywhere").
+ */
+export type SessionPayload = {
+  role: "admin";
+  sub: string;
+  ver: number;
+  expiresAt: number;
+};
 
 function secretKey(): Uint8Array {
   const secret = process.env.SESSION_SECRET;
@@ -26,19 +36,29 @@ export async function encrypt(payload: SessionPayload): Promise<string> {
     .sign(secretKey());
 }
 
+/** The verified payload, or null for a missing, forged, expired or old-format token. Never throws. */
 export async function decrypt(token: string | undefined): Promise<SessionPayload | null> {
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secretKey(), { algorithms: ["HS256"] });
-    return payload.role === "admin" ? (payload as unknown as SessionPayload) : null;
+    if (
+      payload.role !== "admin" ||
+      typeof payload.sub !== "string" ||
+      payload.sub.length === 0 ||
+      typeof payload.ver !== "number" ||
+      typeof payload.expiresAt !== "number"
+    ) {
+      return null;
+    }
+    return { role: "admin", sub: payload.sub, ver: payload.ver, expiresAt: payload.expiresAt };
   } catch {
     return null;
   }
 }
 
-export async function createSession(): Promise<void> {
+export async function createSession(admin: { id: string; sessionVersion: number }): Promise<void> {
   const expiresAt = Date.now() + SESSION_TTL_MS;
-  const token = await encrypt({ role: "admin", expiresAt });
+  const token = await encrypt({ role: "admin", sub: admin.id, ver: admin.sessionVersion, expiresAt });
   (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -50,17 +70,4 @@ export async function createSession(): Promise<void> {
 
 export async function deleteSession(): Promise<void> {
   (await cookies()).delete(SESSION_COOKIE);
-}
-
-/**
- * Constant-time password check. Both sides are hashed first so the comparison
- * always runs over equal-length buffers — timingSafeEqual throws on a length
- * mismatch, which would itself leak the password's length.
- */
-export function passwordMatches(candidate: string): boolean {
-  const expected = process.env.ADMIN_PASSWORD;
-  if (!expected) return false;
-  const a = createHash("sha256").update(candidate).digest();
-  const b = createHash("sha256").update(expected).digest();
-  return timingSafeEqual(a, b);
 }

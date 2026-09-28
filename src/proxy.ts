@@ -2,23 +2,25 @@ import { NextResponse, type NextRequest } from "next/server";
 import { decrypt, SESSION_COOKIE } from "@/lib/admin/session";
 
 /**
- * Optimistic gate for /admin: bounce signed-out visitors to the login page
- * before any admin route renders. This is a convenience layer, not the
- * security boundary — every admin read and mutation re-checks the session
- * through requireAdmin() in src/lib/admin/dal.ts.
+ * Optimistic gate for /admin: bounce visitors without a signed session cookie
+ * to the login page before any admin route renders. This is a convenience
+ * layer, not the security boundary — every admin read and mutation re-checks
+ * the session AND the account through requireAdmin() in src/lib/admin/dal.ts.
+ *
+ * The proxy can't see the database, so it never sends a signed-in visitor
+ * away from the login page: a cookie can be validly signed yet belong to a
+ * deactivated account or predate a password change, and bouncing it to /admin
+ * (which bounces it straight back) would loop. The login page does that
+ * redirect itself, after the full check.
  */
 export default async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const isLogin = pathname === "/admin/login";
-  const session = await decrypt(req.cookies.get(SESSION_COOKIE)?.value);
 
-  if (!session && !isLogin) {
+  if (!isLogin && !(await decrypt(req.cookies.get(SESSION_COOKIE)?.value))) {
     const url = new URL("/admin/login", req.nextUrl);
     if (pathname !== "/admin") url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
-  }
-  if (session && isLogin) {
-    return NextResponse.redirect(new URL("/admin", req.nextUrl));
   }
 
   const res = NextResponse.next();

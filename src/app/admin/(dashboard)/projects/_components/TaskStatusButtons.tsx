@@ -7,7 +7,7 @@ import { cn } from "@/components/admin/ui";
 const OPTIONS = [
   { value: "TODO", label: "To do", icon: Circle, on: "bg-ink-100 text-ink-800" },
   { value: "DOING", label: "Doing", icon: CircleDot, on: "bg-azure-500/10 text-abyss-600" },
-  { value: "DONE", label: "Done", icon: CircleCheck, on: "bg-mint-500/20 text-[#2f8a78]" },
+  { value: "DONE", label: "Done", icon: CircleCheck, on: "bg-mint-500/20 text-mint-ink" },
 ] as const;
 
 /**

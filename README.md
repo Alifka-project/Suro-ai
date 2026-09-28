@@ -154,19 +154,57 @@ strand a visitor on a half-written answer.
 ## Admin dashboard
 
 A private dashboard at **`/admin`** for analytics, CRM, billing and project
-management. It is not linked from anywhere on the public site.
+management. It is not linked from anywhere on the public site. Every page is
+one click away in the sidebar, and the pages link to each other: a lead to its
+quotations, agreement, invoices and project, and back.
 
 | Page | What it does |
 | --- | --- |
-| `/admin` | Analytics — leads, pipeline value, revenue collected, outstanding and overdue invoices, active projects |
-| `/admin/crm` | Every contact-form enquiry as a lead: pipeline status, notes, deal value, linked quotes/invoices/projects |
+| `/admin` | Analytics — new leads, open and weighted pipeline, deals won this month, revenue collected, outstanding invoices, overdue follow-ups, agreements awaiting signature, active projects |
+| `/admin/crm/pipeline` | The CRM pipeline: a kanban board of opportunities by stage (drag to move) |
+| `/admin/crm` | Every lead as a searchable list, filterable by stage |
+| `/admin/crm/activities` | Planner of scheduled calls, emails, meetings and follow-ups, overdue first |
+| `/admin/crm/<id>` | One opportunity: details, timeline of notes and events, activities, linked documents |
 | `/admin/billing` | Quotations and tax invoices in AED with 5% VAT, quote-to-invoice conversion, printable / PDF documents |
+| `/admin/billing/agreements` | Service Agreements with their Statement of Work, generated from quotations |
 | `/admin/projects` | Board of client projects with tasks, progress, due dates and invoiced-vs-value |
+| `/admin/account` | Your password and sessions, and the team list |
+
+### Admin accounts
+
+Each person signs in with their own **admin ID and password**. There is no
+shared password and no sign-up page: accounts are managed from a terminal with
+the `admin:user` script, against whichever database `DATABASE_URL` (or
+`.env.local`) points at.
+
+```bash
+npm run admin:user -- list                              # everyone, active or not, with last sign-in
+npm run admin:user -- create alifka "Alifka"            # new account; you are asked for its password
+npm run admin:user -- set-password alifka               # reset a password; signs out their other sessions
+npm run admin:user -- deactivate alifka                 # blocks sign-in and ends their sessions at once
+npm run admin:user -- activate alifka
+```
+
+Passwords are **never** taken as command-line arguments (they would end up in
+shell history and the process list). In a terminal you get a hidden prompt,
+asked twice. From a script, pipe the password on stdin:
+
+```bash
+printf '%s\n' "$NEW_PASSWORD" | npm run admin:user -- set-password alifka
+```
+
+Admin IDs are 3–32 characters (letters, numbers, `.`, `-`, `_`) and are
+case-insensitive. Passwords need at least 10 characters.
+
+Signed-in admins can change their own password at **`/admin/account`**, which
+signs out every other device they are signed in on, and can "Sign out all other
+devices" there without changing it. The same page lists the team (read-only).
 
 ### How a lead flows in
 
 1. A visitor submits the contact form.
-2. `/api/contact` saves it as a **CRM lead** (status *New*).
+2. `/api/contact` saves it as a **CRM lead** at the top of the pipeline's
+   *New* column, with "Enquiry received via the website form" on its timeline.
 3. The notification email includes an **"Open lead in dashboard"** button linking to
    `/admin/crm/<id>`. If you are signed out, you are taken to the login page and
    returned to that lead afterwards.
@@ -174,53 +212,148 @@ management. It is not linked from anywhere on the public site.
 Saving and emailing are independent: if the database is unavailable the email
 still goes out (flagged as unsaved), and if email fails the lead is still saved.
 
+You can also add a card by hand on the pipeline board, e.g. for a client you
+are approaching. Only a name is required; contact details can follow later.
+
+### The CRM, Odoo-style
+
+- **Pipeline.** Opportunities move through *New → Contacted → Qualified →
+  Proposal → Won* by drag and drop (or the stage bar on the lead page). Each
+  card shows its expected revenue, a 0–3 star priority, tags, the salesperson
+  and an activity clock: red when a follow-up is overdue, amber when one is due
+  today, green when one is planned.
+- **Probability and weighted pipeline.** Every opportunity has a win
+  probability, defaulting to its stage's (10/20/40/60%) unless you set one.
+  Expected revenue × probability is the *weighted pipeline* on the overview.
+- **Activities.** Schedule a call, email, meeting, to-do or follow-up on any
+  opportunity, with a due date and an assignee. Marking one done asks for
+  feedback, which is logged on the timeline. The Activities page and the
+  sidebar badge show what is overdue.
+- **Timeline.** Notes you write sit alongside events the system records:
+  stage changes, won/lost, quotations accepted, agreements generated and sent,
+  invoices created.
+- **Won / Lost.** Lost asks for a reason (plus an optional note) and takes the
+  card off the board; it can be restored to the stage it was in. Lost
+  opportunities are left out of every pipeline figure.
+
+### Deal automation: quotation → service agreement
+
+When a deal is won, its paperwork is generated for you:
+
+- **Accepting a quotation** (Billing) generates its **Service Agreement** as a
+  draft and marks the linked opportunity **Won**.
+- **Marking an opportunity Won** (CRM) uses its accepted quotation — or accepts
+  the latest sent one, or takes the latest draft — and generates the agreement
+  from it. With no quotation at all but an expected revenue, it first creates a
+  draft quotation from that revenue, so the quotation and agreement arrive
+  together for review.
+
+The whole chain runs in one database transaction and every step lands on the
+lead's timeline. The agreement is prefilled from the quotation (client, price,
+one scope line per quote line) and the opportunity (project name, enquiry text
+as background), plus the standard terms.
+
+### Service agreements
+
+Each agreement (numbered `SA-YYYY-NNNN`) holds the agreement terms and its
+Statement of Work: scope, deliverables, out of scope, assumptions, a milestone
+timeline and the three-stage payment schedule (50% deposit / 25% milestone /
+25% final by default).
+
+- **Edit** — only a *Draft* can be edited or re-synced from its quotation. Money
+  and client details are snapshots, so a sent or signed agreement never changes
+  if the quotation is edited later.
+- **Statuses** — *Draft → Sent for signature → Signed*, or *Cancelled*. Sending
+  locks the terms; "Back to draft" unlocks them while no payment stage has been
+  invoiced.
+- **Download / print** — a Word document (`.docx`, A4, letterhead) for the
+  client to sign, or print / save as PDF from the browser.
+- **Payment-schedule invoices** — one click creates the tax invoice for each
+  stage (deposit, milestone, final), due on the agreement's payment terms. Each
+  stage can be invoiced once.
+- **Create project** — turns the SOW into a project on the Projects board,
+  linked back to the agreement.
+
 ### Environment variables
 
 | Variable | Purpose |
 | --- | --- |
 | `DATABASE_URL` | Postgres connection string (Neon, Vercel Postgres, …) |
-| `ADMIN_PASSWORD` | The dashboard password. Use a long, unique value. |
 | `SESSION_SECRET` | Signs session cookies. **At least 32 characters**; the app refuses to start without it. Generate one with `openssl rand -base64 32`. |
 | `APP_URL` | Your public site URL, e.g. `https://suloai.com` — used for the dashboard link in lead emails |
 | `RESEND_API_KEY`, `CONTACT_TO_EMAIL`, `CONTACT_FROM_EMAIL` | Lead notification email (see above) |
+
+There is no password variable: sign-in uses the admin accounts in the database
+(see [Admin accounts](#admin-accounts)). An old `ADMIN_PASSWORD` can be removed
+from your environment; nothing reads it.
 
 ### Deploying with Neon (recommended)
 
 1. Create a free project at [neon.tech](https://neon.tech) and copy the **pooled**
    connection string.
 2. In Vercel → Settings → Environment Variables, add `DATABASE_URL`,
-   `ADMIN_PASSWORD`, `SESSION_SECRET` and `APP_URL`.
-3. Create the tables once, from your machine:
+   `SESSION_SECRET` and `APP_URL`.
+3. Create or update the tables from your machine. Run this on first deploy
+   **and every time a new migration is added** (for example
+   `20260928090000_crm_pipeline_agreements_admins`, which adds the pipeline
+   fields, activities, service agreements and admin accounts):
 
    ```bash
    DATABASE_URL="<your neon url>" npx prisma migrate deploy
    ```
 
-4. Redeploy. `postinstall` runs `prisma generate` automatically on Vercel.
+   The migration only adds tables and columns (and relaxes a few lead fields
+   to optional), so existing leads, quotations and invoices are kept.
+
+4. Create at least one admin account against the same database, then redeploy.
+   `postinstall` runs `prisma generate` automatically on Vercel.
+
+   ```bash
+   DATABASE_URL="<your neon url>" npm run admin:user -- create <admin-id> "<Your name>"
+   ```
 
 Never run `npm run db:seed` against production — the seeder refuses to run
-unless `DATABASE_URL` points at `localhost`, and everything it creates is tagged
+unless `DATABASE_URL` points at `localhost`, and every lead it creates is tagged
 `source = "demo"`.
 
 ### Local development
 
 ```bash
-npm run db:migrate   # apply migrations to your local DATABASE_URL
-npm run db:seed      # optional demo data (localhost only)
-npm run db:studio    # browse the database
+npm run db:migrate                               # apply migrations to your local DATABASE_URL
+npm run admin:user -- create <admin-id> "<name>"  # an account to sign in with
+npm run db:seed                                  # optional demo data (localhost only)
+npm run db:studio                                # browse the database
 ```
+
+The demo data covers every pipeline stage, activities that are overdue, due
+today and planned, a lost deal, and a deal won this month with its accepted
+quotation, a service agreement out for signature and the deposit invoice. It
+assigns the demo leads to your existing admin accounts, so create an account
+before seeding. Re-running the seed replaces the previous demo data.
 
 ### Security model
 
-- **Sign-in:** one admin password, compared in constant time, exchanged for a
-  signed (HS256) HTTP-only session cookie that lasts 7 days. Login attempts are
-  rate-limited per IP.
+- **Sign-in:** per-person admin accounts. Passwords are hashed with scrypt
+  (never stored or logged in plain text) and exchanged for a signed (HS256)
+  HTTP-only session cookie that lasts 7 days. Failed sign-ins are rate-limited
+  per IP and per admin ID, and an unknown ID takes as long to refuse as a wrong
+  password, so response times don't reveal which IDs exist.
+- **Changing a password needs the current one, and guesses are capped.** Five
+  wrong current passwords within 15 minutes (counted per account, in memory)
+  sign the account out on every device, including the one guessing, so a
+  stolen session cookie can't be used to guess its way to a takeover. The
+  owner simply signs in again.
+- **Sessions can be revoked.** Each account has a session version carried in
+  its cookie. Changing a password, "Sign out all other devices", too many
+  wrong current passwords and deactivating an account bump it, which ends the
+  affected sessions on their next request rather than when the cookie expires.
 - **Every read and every mutation is authorised**, not just the page shell.
   Next.js 16 documents both the proxy and layouts as insufficient on their own
   (layouts don't re-run on client navigation; Server Actions are public POST
   endpoints), so `requireAdmin()` in `src/lib/admin/dal.ts` is called at the top
-  of every admin page and every Server Action. `src/proxy.ts` adds an early
-  redirect for signed-out visitors and `noindex` headers on top.
+  of every admin page and every Server Action, and re-reads the account from
+  the database. `src/proxy.ts` adds an early redirect for signed-out visitors
+  and `noindex` headers on top.
 - **Post-login redirects** only accept `/admin/...` paths, so the `?next=`
   parameter can't be used as an open redirect.
 - **Money** is stored as integer fils (1 AED = 100 fils) and VAT as basis points,

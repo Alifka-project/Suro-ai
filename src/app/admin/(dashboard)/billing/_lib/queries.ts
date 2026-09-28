@@ -20,8 +20,25 @@ export const getQuote = cache(async (id: string) => {
     where: { id },
     include: {
       items: { orderBy: { position: "asc" } },
-      lead: { select: { id: true, fullName: true, companyName: true } },
-      invoice: { select: { id: true, number: true } },
+      lead: { select: { id: true, fullName: true, companyName: true, title: true, status: true } },
+      invoice: { select: { id: true, number: true, status: true } },
+      agreement: {
+        select: {
+          id: true,
+          number: true,
+          status: true,
+          subtotalFils: true,
+          vatBps: true,
+          totalFils: true,
+          currency: true,
+          project: { select: { id: true, name: true } },
+          // Stage invoices that still count: a voided one can be reissued.
+          invoices: {
+            where: { installment: { not: null }, status: { not: "VOID" } },
+            select: { id: true, number: true },
+          },
+        },
+      },
     },
   });
 });
@@ -33,9 +50,21 @@ export const getInvoice = cache(async (id: string) => {
     where: { id },
     include: {
       items: { orderBy: { position: "asc" } },
-      lead: { select: { id: true, fullName: true, companyName: true } },
+      lead: { select: { id: true, fullName: true, companyName: true, title: true } },
       project: { select: { id: true, name: true } },
       quote: { select: { id: true, number: true } },
+      agreement: {
+        select: {
+          id: true,
+          number: true,
+          status: true,
+          depositPct: true,
+          midpointPct: true,
+          finalPct: true,
+          midpointMilestone: true,
+          invoiceDueDays: true,
+        },
+      },
     },
   });
 });
@@ -45,7 +74,7 @@ const leadSelect = { id: true, fullName: true, email: true, companyName: true, e
 function toLeadOption(l: {
   id: string;
   fullName: string;
-  email: string;
+  email: string | null;
   companyName: string | null;
   estimatedValueFils: number | null;
 }): LeadOption {

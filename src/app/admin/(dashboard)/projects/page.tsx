@@ -4,6 +4,7 @@ import {
   Building2,
   CircleCheckBig,
   Columns3,
+  FileSignature,
   FolderKanban,
   List,
   Plus,
@@ -11,8 +12,10 @@ import {
   UserRound,
   Wallet,
 } from "lucide-react";
+import type { AgreementStatus } from "@prisma/client";
 import { requireAdmin } from "@/lib/admin/dal";
 import { db } from "@/lib/db";
+import { AGREEMENT_STATUS } from "@/lib/admin/agreement-terms";
 import { formatMoney, formatMoneyCompact } from "@/lib/admin/money";
 import { PROJECT_PIPELINE, PROJECT_STATUS } from "@/lib/admin/labels";
 import {
@@ -46,6 +49,8 @@ type ProjectRow = {
   dueDate: Date | null;
   valueFils: number | null;
   client: { name: string; company: string | null } | null;
+  /** The service agreement the project was started from, if any. */
+  agreement: { number: string; status: AgreementStatus } | null;
   done: number;
   total: number;
   overdue: boolean;
@@ -69,6 +74,7 @@ export default async function ProjectsPage({
         dueDate: true,
         valueFils: true,
         lead: { select: { fullName: true, companyName: true } },
+        agreement: { select: { number: true, status: true } },
       },
       orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }],
     }),
@@ -94,6 +100,7 @@ export default async function ProjectsPage({
       dueDate: project.dueDate,
       valueFils: project.valueFils,
       client: project.lead ? { name: project.lead.fullName, company: project.lead.companyName } : null,
+      agreement: project.agreement,
       done: counts.done,
       total: counts.total,
       overdue: project.status !== "DONE" && isPastDue(project.dueDate, now),
@@ -243,7 +250,7 @@ function ProjectBoard({ rows }: { rows: ProjectRow[] }) {
           The negative margins match the main element's padding at each
           breakpoint, so the scroller never widens the page itself. From xl up
           the five columns share the width and nothing scrolls. */}
-      <div className="-mx-4 snap-x snap-mandatory scroll-px-4 overflow-x-auto px-4 pb-4 sm:-mx-6 sm:scroll-px-6 sm:px-6 lg:-mx-8 lg:snap-none lg:px-8 xl:mx-0 xl:overflow-visible xl:px-0">
+      <div className="relative -mx-4 snap-x snap-mandatory scroll-px-4 overflow-x-auto px-4 pb-4 sm:-mx-6 sm:scroll-px-6 sm:px-6 lg:-mx-8 lg:snap-none lg:px-8 xl:mx-0 xl:overflow-visible xl:px-0">
         <div className="flex w-max gap-4 xl:grid xl:w-full xl:grid-cols-5 xl:gap-3">
           {columns.map(({ status, meta, projects, value }) => {
             const headingId = `column-${status}-heading`;
@@ -307,6 +314,29 @@ function ClientLine({ client }: { client: ProjectRow["client"] }) {
   );
 }
 
+/** Short status words for the marker; the full label is in its tooltip. */
+const AGREEMENT_SHORT: Record<AgreementStatus, string> = {
+  DRAFT: "Draft",
+  SENT: "Sent",
+  SIGNED: "Signed",
+  CANCELLED: "Cancelled",
+};
+
+/** Small marker for a project delivered under a service agreement: its number and status, in words. */
+function AgreementMarker({ agreement }: { agreement: NonNullable<ProjectRow["agreement"]> }) {
+  return (
+    <span
+      title={`Service agreement ${agreement.number} · ${AGREEMENT_STATUS[agreement.status].label}`}
+      className="inline-flex max-w-full items-center gap-1 rounded-md bg-haze px-1.5 py-0.5 text-[0.66rem] font-medium text-ink-600 ring-1 ring-inset ring-ink-100"
+    >
+      <FileSignature className="h-3 w-3 shrink-0 text-abyss-600" aria-hidden="true" />
+      <span className="sr-only">Service agreement</span>
+      <span className="truncate font-mono">{agreement.number}</span>
+      <span className="shrink-0 text-ink-500">· {AGREEMENT_SHORT[agreement.status]}</span>
+    </span>
+  );
+}
+
 function ProjectCard({ row }: { row: ProjectRow }) {
   return (
     <article className="rounded-xl border border-ink-100 bg-white p-3.5 shadow-[0_1px_2px_rgb(7_38_60_/_0.04)] transition-shadow hover:shadow-[0_1px_2px_rgb(7_38_60_/_0.04),0_10px_24px_-16px_rgb(7_38_60_/_0.25)]">
@@ -321,6 +351,11 @@ function ProjectCard({ row }: { row: ProjectRow }) {
       <div className="mt-1 text-[0.76rem] text-ink-500">
         <ClientLine client={row.client} />
       </div>
+      {row.agreement && (
+        <div className="mt-2">
+          <AgreementMarker agreement={row.agreement} />
+        </div>
+      )}
 
       <div className="mt-3 space-y-1.5 text-[0.76rem]">
         <p className="flex items-center gap-1.5 font-semibold text-ink-800 tabular-nums">
@@ -393,6 +428,11 @@ function ProjectTable({ rows }: { rows: ProjectRow[] }) {
                 >
                   {row.name}
                 </Link>
+                {row.agreement && (
+                  <div className="mt-1">
+                    <AgreementMarker agreement={row.agreement} />
+                  </div>
+                )}
               </Td>
               <Td className="max-w-[14rem]">
                 {row.client ? (

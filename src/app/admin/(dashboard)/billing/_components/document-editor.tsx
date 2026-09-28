@@ -142,7 +142,7 @@ export function DocumentEditor({
     const lead = leads.find((l) => l.id === id);
     if (lead) {
       setClientName(lead.name);
-      setClientEmail(lead.email);
+      setClientEmail(lead.email ?? "");
       setClientCompany(lead.company ?? "");
     }
   }

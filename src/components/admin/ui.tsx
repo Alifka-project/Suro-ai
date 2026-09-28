@@ -79,7 +79,7 @@ const TONES: Record<Tone, string> = {
   neutral: "bg-ink-100 text-ink-600 ring-ink-200",
   blue: "bg-azure-500/10 text-abyss-600 ring-azure-500/25",
   aqua: "bg-aqua-500/10 text-aqua-600 ring-aqua-500/25",
-  mint: "bg-mint-500/15 text-[#2f8a78] ring-mint-600/30",
+  mint: "bg-mint-500/15 text-mint-ink ring-mint-600/30",
   lilac: "bg-lilac-500/15 text-lilac-600 ring-lilac-500/30",
   blush: "bg-blush-500/15 text-blush-600 ring-blush-500/30",
   amber: "bg-amber-400/15 text-amber-700 ring-amber-400/30",
@@ -179,7 +179,7 @@ export function EmptyState({
 
 export function Table({ children }: { children: ReactNode }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="relative overflow-x-auto">
       <table className="w-full min-w-[640px] border-collapse text-left text-[0.85rem]">{children}</table>
     </div>
   );

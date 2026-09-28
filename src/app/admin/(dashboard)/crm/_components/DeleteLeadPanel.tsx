@@ -15,11 +15,15 @@ export function DeleteLeadPanel({
   leadName,
   noteCount,
   linkedCount,
+  activityCount = 0,
 }: {
   leadId: string;
   leadName: string;
+  /** Timeline entries (notes and events), deleted with the opportunity. */
   noteCount: number;
   linkedCount: number;
+  /** Scheduled and completed activities, deleted with the opportunity. */
+  activityCount?: number;
 }) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState<CrmActionState, FormData>(deleteLead, null);
@@ -38,9 +42,10 @@ export function DeleteLeadPanel({
             Danger zone
           </h2>
           <p className="mt-0.5 text-[0.78rem] leading-relaxed text-ink-500">
-            Deleting removes this lead and {plural(noteCount, "note")} for good.
+            Deleting removes this opportunity, its timeline ({plural(noteCount, "entry", "entries")})
+            {activityCount > 0 && ` and ${plural(activityCount, "activity", "activities")}`} for good.
             {linkedCount > 0 &&
-              ` Its ${plural(linkedCount, "linked record")} (quotes, invoices, projects) will be kept but unlinked.`}
+              ` Its ${plural(linkedCount, "linked record")} (quotations, agreements, invoices, projects) will be kept but unlinked.`}
           </p>
         </div>
       </div>
@@ -48,7 +53,7 @@ export function DeleteLeadPanel({
       {!open ? (
         <Button type="button" variant="danger" className="mt-4 w-full" onClick={() => setOpen(true)}>
           <Trash2 className="h-4 w-4" aria-hidden="true" />
-          Delete lead
+          Delete opportunity
         </Button>
       ) : (
         /*

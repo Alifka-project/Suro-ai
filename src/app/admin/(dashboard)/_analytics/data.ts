@@ -1,11 +1,21 @@
 import "server-only";
-import type { LeadStatus, ProjectStatus } from "@prisma/client";
+import type { ActivityType, AgreementStatus, LeadStatus, Prisma, ProjectStatus } from "@prisma/client";
 import { db } from "@/lib/db";
+import { AGREEMENT_STATUS, AGREEMENT_STATUS_ORDER } from "@/lib/admin/agreement-terms";
 import { requireAdmin } from "@/lib/admin/dal";
 import { effectiveInvoiceStatus } from "@/lib/admin/invoices";
 import { DEFAULT_CURRENCY, documentTotals, formatMoney, formatMoneyCompact } from "@/lib/admin/money";
-import { LEAD_PIPELINE, LEAD_STATUS, TONE_DOT } from "@/lib/admin/labels";
-import { BUSINESS_TIME_ZONE, dayKey, daysFromToday, dueHint, isPastDay } from "@/lib/admin/time";
+import { LEAD_STATUS, TONE_DOT, type Tone } from "@/lib/admin/labels";
+import { BOARD_STAGES, OPEN_STAGES, leadTitle, weightedRevenueFils } from "@/lib/admin/pipeline";
+import {
+  BUSINESS_TIME_ZONE,
+  calendarDaysBetween,
+  dayKey,
+  daysFromToday,
+  dueHint,
+  isPastDay,
+  startOfBusinessDay,
+} from "@/lib/admin/time";
 import {
   addDays,
   addMonths,
@@ -23,7 +33,6 @@ import {
    any text a client component shows on first paint is pre-formatted here, so
    server and browser ICU data can never disagree during hydration. */
 
-const OPEN_LEAD_STATUSES = ["NEW", "CONTACTED", "QUALIFIED", "PROPOSAL"] as const satisfies readonly LeadStatus[];
 const ACTIVE_PROJECT_STATUSES = ["PLANNING", "IN_PROGRESS", "REVIEW"] as const satisfies readonly ProjectStatus[];
 
 const WEEKS = 12;
@@ -32,6 +41,10 @@ const RECENT_LEADS = 6;
 const ATTENTION_LIMIT = 6;
 const ATTENTION_WINDOW_DAYS = 7;
 const PROJECT_LIMIT = 6;
+const FOLLOW_UP_LIMIT = 6;
+const AGREEMENT_LIMIT = 5;
+/** A sent agreement unsigned for longer than this is flagged for a chase-up. */
+const SIGNATURE_CHASE_DAYS = 7;
 
 export type WeeklyLeadsPoint = {
   key: string;
@@ -66,6 +79,8 @@ export type ServiceCount = { service: string; count: number };
 
 export type RecentLead = {
   id: string;
+  /** Opportunity title, else company, else contact (leadTitle). */
+  title: string;
   name: string;
   company: string | null;
   isIndividual: boolean;
@@ -96,6 +111,37 @@ export type ActiveProject = {
   totalTasks: number;
 };
 
+/** An open activity past its due day, on an opportunity that isn't lost. */
+export type OverdueFollowUp = {
+  id: string;
+  leadId: string;
+  /** leadTitle of the opportunity. */
+  lead: string;
+  summary: string;
+  type: ActivityType;
+  dueDate: Date;
+  /** "3 days overdue", counted in business-clock calendar days. */
+  dueLabel: string;
+  assignee: string | null;
+};
+
+/** A service agreement sent to the client and not yet signed. */
+export type AwaitingAgreement = {
+  id: string;
+  number: string;
+  client: string;
+  projectName: string;
+  totalFils: number;
+  currency: string;
+  sentAt: Date;
+  /** "Sent today", "Sent 5 days ago". */
+  waitingLabel: string;
+  /** Unsigned for more than SIGNATURE_CHASE_DAYS. */
+  stale: boolean;
+};
+
+export type AgreementStatusCount = { status: AgreementStatus; label: string; tone: Tone; count: number };
+
 export type OverviewData = {
   now: Date;
   currency: string;
@@ -103,8 +149,15 @@ export type OverviewData = {
     newLeads30: number;
     newLeadsPrior30: number;
     openPipelineFils: number;
+    /** Expected revenue × win probability over open opportunities. */
+    weightedPipelineFils: number;
     openLeads: number;
     openLeadsUnvalued: number;
+    wonMonthCount: number;
+    /** Expected revenue of the deals won this business-clock month. */
+    wonMonthFils: number;
+    /** "September". */
+    monthName: string;
     revenueYtdFils: number;
     revenue30Fils: number;
     paidYtdCount: number;
@@ -116,6 +169,7 @@ export type OverviewData = {
   weeklyLeads: WeeklyLeadsPoint[];
   monthlyRevenue: MonthlyRevenuePoint[];
   pipeline: {
+    /** Board stages only (New … Won): lost opportunities are out of the pipeline. */
     stages: PipelineStage[];
     totalLeads: number;
     won: number;
@@ -127,6 +181,13 @@ export type OverviewData = {
   };
   recentLeads: RecentLead[];
   attention: { items: AttentionInvoice[]; total: number; overdueTotal: number };
+  followUps: { items: OverdueFollowUp[]; overdueTotal: number; dueToday: number };
+  agreements: {
+    counts: AgreementStatusCount[];
+    total: number;
+    awaiting: AwaitingAgreement[];
+    awaitingTotal: number;
+  };
   activeProjects: { items: ActiveProject[]; total: number };
   /** Invoices in a currency other than the dashboard's, left out of the money totals. */
   otherCurrencyInvoices: number;
@@ -139,6 +200,14 @@ const dayMonth = new Intl.DateTimeFormat("en-GB", { timeZone, day: "numeric", mo
 const dayOnly = new Intl.DateTimeFormat("en-GB", { timeZone, day: "numeric" });
 const monthShort = new Intl.DateTimeFormat("en-GB", { timeZone, month: "short" });
 const monthLong = new Intl.DateTimeFormat("en-GB", { timeZone, month: "long", year: "numeric" });
+const monthName = new Intl.DateTimeFormat("en-GB", { timeZone, month: "long" });
+
+function waitingLabel(sentAt: Date, now: Date): string {
+  const days = calendarDaysBetween(sentAt, now);
+  if (days <= 0) return "Sent today";
+  if (days === 1) return "Sent yesterday";
+  return `Sent ${days} days ago`;
+}
 
 function weekRangeLabel(start: Date): string {
   const end = addDays(start, 6);
@@ -159,8 +228,18 @@ export async function getOverviewData(): Promise<OverviewData> {
   const thisWeek = startOfWeek(now);
   const firstWeek = addDays(thisWeek, -7 * (WEEKS - 1));
   const thisMonth = startOfMonth(now);
+  const nextMonth = addMonths(now, 1);
   const firstMonth = addMonths(thisMonth, -(MONTHS - 1));
   const yearStart = startOfYear(now);
+  const startOfToday = startOfBusinessDay(now);
+
+  // Same rule as the sidebar badge and the Activities planner: open, due
+  // before today began on the business clock, opportunity still in play.
+  const overdueActivityWhere: Prisma.ActivityWhereInput = {
+    doneAt: null,
+    dueDate: { lt: startOfToday },
+    lead: { status: { not: "LOST" } },
+  };
 
   const leadsSince = earliest(firstWeek, days60Ago);
   const paidSince = earliest(firstMonth, yearStart, days30Ago);
@@ -174,6 +253,13 @@ export async function getOverviewData(): Promise<OverviewData> {
     invoiceRows,
     projectRows,
     activeProjectCount,
+    openLeadRows,
+    wonThisMonth,
+    overdueActivityRows,
+    overdueActivityCount,
+    dueTodayCount,
+    agreementGroups,
+    awaitingRows,
   ] = await Promise.all([
     db.lead.findMany({
       where: { createdAt: { gte: leadsSince } },
@@ -185,7 +271,7 @@ export async function getOverviewData(): Promise<OverviewData> {
       _sum: { estimatedValueFils: true },
     }),
     db.lead.count({
-      where: { status: { in: [...OPEN_LEAD_STATUSES] }, estimatedValueFils: null },
+      where: { status: { in: [...OPEN_STAGES] }, estimatedValueFils: null },
     }),
     db.lead.findMany({ select: { services: true } }),
     db.lead.findMany({
@@ -193,6 +279,7 @@ export async function getOverviewData(): Promise<OverviewData> {
       take: RECENT_LEADS,
       select: {
         id: true,
+        title: true,
         fullName: true,
         companyName: true,
         clientType: true,
@@ -233,6 +320,56 @@ export async function getOverviewData(): Promise<OverviewData> {
       },
     }),
     db.project.count({ where: { status: { in: [...ACTIVE_PROJECT_STATUSES] } } }),
+    // Per-lead rows: the weighted figure needs each opportunity's own probability.
+    db.lead.findMany({
+      where: { status: { in: [...OPEN_STAGES] } },
+      select: { status: true, probability: true, estimatedValueFils: true },
+    }),
+    db.lead.aggregate({
+      where: { status: "WON", wonAt: { gte: thisMonth, lt: nextMonth } },
+      _count: { _all: true },
+      _sum: { estimatedValueFils: true },
+    }),
+    db.activity.findMany({
+      where: overdueActivityWhere,
+      orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
+      take: FOLLOW_UP_LIMIT,
+      select: {
+        id: true,
+        type: true,
+        summary: true,
+        dueDate: true,
+        leadId: true,
+        lead: { select: { title: true, companyName: true, fullName: true } },
+        assignee: { select: { name: true } },
+      },
+    }),
+    db.activity.count({ where: overdueActivityWhere }),
+    db.activity.count({
+      where: {
+        doneAt: null,
+        dueDate: { gte: startOfToday, lt: addDays(startOfToday, 1) },
+        lead: { status: { not: "LOST" } },
+      },
+    }),
+    db.agreement.groupBy({ by: ["status"], _count: { _all: true } }),
+    // Longest-waiting first: those are the ones to chase.
+    db.agreement.findMany({
+      where: { status: "SENT" },
+      orderBy: [{ sentAt: { sort: "asc", nulls: "first" } }, { createdAt: "asc" }],
+      take: AGREEMENT_LIMIT,
+      select: {
+        id: true,
+        number: true,
+        clientName: true,
+        clientCompany: true,
+        projectName: true,
+        totalFils: true,
+        currency: true,
+        sentAt: true,
+        updatedAt: true,
+      },
+    }),
   ]);
 
   const taskGroups =
@@ -268,8 +405,11 @@ export async function getOverviewData(): Promise<OverviewData> {
   }));
 
   // ── Pipeline by stage ───────────────────────────────────────────────────
+  // Lost opportunities leave the board (Odoo archives them), so they are left
+  // out of every pipeline figure; they only feed the win rate.
   const byStatus = new Map(stageGroups.map((g) => [g.status as string, g]));
-  const stages: PipelineStage[] = LEAD_PIPELINE.map((status) => {
+  const allLeads = stageGroups.reduce((s, g) => s + g._count._all, 0);
+  const stages: PipelineStage[] = BOARD_STAGES.map((status) => {
     const g = byStatus.get(status);
     const valueFils = g?._sum.estimatedValueFils ?? 0;
     return {
@@ -283,9 +423,10 @@ export async function getOverviewData(): Promise<OverviewData> {
     };
   });
   const totalLeads = stages.reduce((s, st) => s + st.count, 0);
-  const openStages = stages.filter((s) => (OPEN_LEAD_STATUSES as readonly string[]).includes(s.status));
+  const openStages = stages.filter((s) => (OPEN_STAGES as readonly string[]).includes(s.status));
   const openPipelineFils = openStages.reduce((s, st) => s + st.valueFils, 0);
   const openLeads = openStages.reduce((s, st) => s + st.count, 0);
+  const weightedPipelineFils = openLeadRows.reduce((s, lead) => s + weightedRevenueFils(lead), 0);
 
   // ── Services requested ──────────────────────────────────────────────────
   const serviceCounts = new Map<string, number>();
@@ -395,6 +536,42 @@ export async function getOverviewData(): Promise<OverviewData> {
     taskTotals.set(g.projectId, entry);
   }
 
+  // ── Follow-ups and agreements ───────────────────────────────────────────
+  const followUps: OverdueFollowUp[] = overdueActivityRows.map((a) => ({
+    id: a.id,
+    leadId: a.leadId,
+    lead: leadTitle(a.lead),
+    summary: a.summary,
+    type: a.type,
+    dueDate: a.dueDate,
+    dueLabel: dueHint(a.dueDate, now),
+    assignee: a.assignee?.name ?? null,
+  }));
+
+  const agreementCountByStatus = new Map(agreementGroups.map((g) => [g.status, g._count._all]));
+  const agreementCounts: AgreementStatusCount[] = AGREEMENT_STATUS_ORDER.map((status) => ({
+    status,
+    label: AGREEMENT_STATUS[status].label,
+    tone: AGREEMENT_STATUS[status].tone,
+    count: agreementCountByStatus.get(status) ?? 0,
+  }));
+
+  const awaiting: AwaitingAgreement[] = awaitingRows.map((a) => {
+    // sentAt is set when an agreement is sent; updatedAt covers rows from before that.
+    const sentAt = a.sentAt ?? a.updatedAt;
+    return {
+      id: a.id,
+      number: a.number,
+      client: a.clientCompany || a.clientName,
+      projectName: a.projectName,
+      totalFils: a.totalFils,
+      currency: a.currency,
+      sentAt,
+      waitingLabel: waitingLabel(sentAt, now),
+      stale: calendarDaysBetween(sentAt, now) > SIGNATURE_CHASE_DAYS,
+    };
+  });
+
   const activeProjects: ActiveProject[] = projectRows.map((p) => {
     const tasks = taskTotals.get(p.id) ?? { done: 0, total: 0 };
     return {
@@ -416,8 +593,12 @@ export async function getOverviewData(): Promise<OverviewData> {
       newLeads30,
       newLeadsPrior30,
       openPipelineFils,
+      weightedPipelineFils,
       openLeads,
       openLeadsUnvalued,
+      wonMonthCount: wonThisMonth._count._all,
+      wonMonthFils: wonThisMonth._sum.estimatedValueFils ?? 0,
+      monthName: monthName.format(now),
       revenueYtdFils,
       revenue30Fils,
       paidYtdCount,
@@ -434,9 +615,10 @@ export async function getOverviewData(): Promise<OverviewData> {
       won: byStatus.get("WON")?._count._all ?? 0,
       lost: byStatus.get("LOST")?._count._all ?? 0,
     },
-    services: { items: serviceItems, totalLeads },
+    services: { items: serviceItems, totalLeads: allLeads },
     recentLeads: recentLeadRows.map((l) => ({
       id: l.id,
+      title: leadTitle(l),
       name: l.fullName,
       company: l.companyName,
       isIndividual: l.clientType === "INDIVIDUAL",
@@ -447,6 +629,13 @@ export async function getOverviewData(): Promise<OverviewData> {
       items: attention.slice(0, ATTENTION_LIMIT),
       total: attention.length,
       overdueTotal: attention.filter((a) => a.overdue).length,
+    },
+    followUps: { items: followUps, overdueTotal: overdueActivityCount, dueToday: dueTodayCount },
+    agreements: {
+      counts: agreementCounts,
+      total: agreementCounts.reduce((s, c) => s + c.count, 0),
+      awaiting,
+      awaitingTotal: agreementCountByStatus.get("SENT") ?? 0,
     },
     activeProjects: { items: activeProjects, total: activeProjectCount },
     otherCurrencyInvoices,

@@ -26,7 +26,7 @@ const PRINT_PAGE_CSS = "@page { margin: 0; }";
 
 const STAMP_TONES: Record<Stamp["tone"], string> = {
   neutral: "border-ink-300 text-ink-500",
-  mint: "border-mint-600 text-[#2f8a78]",
+  mint: "border-mint-600 text-mint-ink",
   red: "border-red-400 text-red-600",
   amber: "border-amber-400 text-amber-700",
   blue: "border-azure-400 text-abyss-600",
@@ -69,6 +69,7 @@ export function BillingDocument({
   currency,
   notes,
   reference,
+  paymentTerms,
   stamp,
 }: {
   kind: DocumentKind;
@@ -86,6 +87,8 @@ export function BillingDocument({
   notes: string | null;
   /** e.g. "Quotation Q-2026-0001" on an invoice converted from a quote. */
   reference?: string | null;
+  /** Invoices only: replaces the default terms, e.g. an agreement's own payment terms. */
+  paymentTerms?: string | null;
   stamp?: Stamp | null;
 }) {
   const isInvoice = kind === "invoice";
@@ -167,7 +170,8 @@ export function BillingDocument({
             <p className={LABEL}>{isInvoice ? "Bill to" : "Prepared for"}</p>
             <p className="mt-1.5 break-words font-display text-[1rem] font-bold text-ink-900">{client.name}</p>
             {client.company && <p className="break-words text-[0.85rem] text-ink-700">{client.company}</p>}
-            <p className="break-words text-[0.82rem] text-ink-500">{client.email}</p>
+            {/* A client approached without an email on file has none to print. */}
+            {client.email.trim() && <p className="break-words text-[0.82rem] text-ink-500">{client.email}</p>}
           </div>
           {reference && (
             <div className="min-w-0 sm:text-right print:text-right">
@@ -274,7 +278,7 @@ export function BillingDocument({
             <>
               <div className="min-w-0">
                 <p className={LABEL}>Payment terms</p>
-                <p className="mt-1.5 text-[0.82rem] leading-relaxed text-ink-700">{BUSINESS.paymentTerms}</p>
+                <p className="mt-1.5 text-[0.82rem] leading-relaxed text-ink-700">{paymentTerms || BUSINESS.paymentTerms}</p>
                 <p className="mt-1 text-[0.82rem] leading-relaxed text-ink-700">
                   Please quote <span className="font-mono font-medium text-ink-900">{number}</span> as the payment
                   reference.

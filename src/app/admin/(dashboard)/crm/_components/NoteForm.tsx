@@ -36,7 +36,7 @@ export function NoteForm({ leadId }: { leadId: string }) {
     <form ref={formRef} action={formAction} className="space-y-2.5">
       <input type="hidden" name="leadId" value={leadId} />
       <label htmlFor="note-body" className="sr-only">
-        New note
+        Log a note
       </label>
       {/* Remounted per attempt: empty after a save, the typed text after a failure. */}
       <textarea
@@ -50,15 +50,15 @@ export function NoteForm({ leadId }: { leadId: string }) {
         readOnly={pending}
         aria-busy={pending || undefined}
         defaultValue={failed ? (state.value ?? "") : ""}
-        placeholder="Log a call, a meeting or the next step..."
+        placeholder="Log a call, a meeting, a decision or the next step…"
         onKeyDown={submitOnModEnter}
         aria-invalid={failed || undefined}
         className={cn(textareaClass, "min-h-[5.5rem] resize-y read-only:opacity-70")}
       />
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[0.72rem] text-ink-600">Private to admins. Ctrl or Cmd + Enter to save.</p>
-        <SubmitButton size="sm" pendingLabel="Adding">
-          Add note
+        <p className="text-[0.72rem] text-ink-600">Visible to admins only. Ctrl or Cmd + Enter to save.</p>
+        <SubmitButton size="sm" pendingLabel="Logging">
+          Log note
         </SubmitButton>
       </div>
       {/* Success is announced too ("Note added."), not only failures. */}

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { contactSchema, type ContactInput } from "@/lib/contact-schema";
+import { sortOrderAtTop } from "@/lib/admin/deals";
+import { logLeadEvent } from "@/lib/admin/timeline";
 import { db } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -8,11 +10,12 @@ export const runtime = "nodejs";
 /**
  * Lead intake.
  *
- * Every valid submission is saved as a CRM lead, then announced by email with
- * a link straight to that lead in the admin dashboard. The two steps are
- * independent on purpose: if the database is down the email still goes out,
- * and if email fails the lead is still saved — an enquiry is only lost if
- * both fail, and then it is logged in full.
+ * Every valid submission is saved as a CRM lead — at the top of the pipeline's
+ * New column, with "Enquiry received" on its timeline — then announced by
+ * email with a link straight to that lead in the admin dashboard. The two
+ * steps are independent on purpose: if the database is down the email still
+ * goes out, and if email fails the lead is still saved — an enquiry is only
+ * lost if both fail, and then it is logged in full.
  *
  * Sends through Resend when RESEND_API_KEY is present. Without a key the route
  * still validates and accepts the submission and logs it to the server console,
@@ -164,6 +167,8 @@ export async function POST(request: Request) {
   try {
     const lead = await db.lead.create({
       data: {
+        // Newest enquiry first in the pipeline's New column.
+        sortOrder: await sortOrderAtTop(db, "NEW"),
         clientType: data.clientType === "company" ? "COMPANY" : "INDIVIDUAL",
         fullName: data.fullName,
         email: data.email,
@@ -184,8 +189,16 @@ export async function POST(request: Request) {
       select: { id: true },
     });
     leadId = lead.id;
+    // After leadId is set: if only the timeline entry fails, the lead still
+    // counts as saved below.
+    await logLeadEvent(lead.id, "Enquiry received via the website form.", null);
   } catch (err) {
-    console.error("[contact] could not save lead to database:", err);
+    console.error(
+      leadId
+        ? "[contact] lead saved, but its timeline entry failed:"
+        : "[contact] could not save lead to database:",
+      err
+    );
   }
 
   const appUrl = (process.env.APP_URL ?? "").replace(/\/$/, "");

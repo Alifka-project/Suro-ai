@@ -49,6 +49,8 @@
   --color-mint-400: #96d9d2;
   --color-mint-300: #addbc2;
   --color-mint-200: #c8e8dc;
+  /* Mint dark enough for small text: 5.5:1 on white (mint-600 is for fills). */
+  --color-mint-ink: #267567;
 
   /* — Lilac (02/04/07/09) */
   --color-lilac-600: #9b8ad4;

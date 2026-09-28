@@ -2,8 +2,15 @@
 
 export type DocumentKind = "quote" | "invoice";
 
-/** Result of a status / delete / convert action. Undefined before the first submit. */
-export type ActionState = { error?: string } | undefined;
+/** A follow-up link shown with an action's notice, e.g. the generated agreement. */
+export type NoticeLink = { label: string; href: string };
+
+/**
+ * Result of a status / delete / convert action. Undefined before the first
+ * submit. `notice` is a success message worth reading ("Service agreement
+ * SA-… generated · opportunity marked Won"), with optional follow-up links.
+ */
+export type ActionState = { error?: string; notice?: string; links?: NoticeLink[] } | undefined;
 
 export type EditorItemInput = {
   description: string;
@@ -35,7 +42,8 @@ export type EditorState =
 export type LeadOption = {
   id: string;
   name: string;
-  email: string;
+  /** Optional in the CRM: a card for a client being approached may have no email yet. */
+  email: string | null;
   company: string | null;
   /** The admin's CRM estimate, shown in the editor as a pricing reference. */
   estimatedValueFils: number | null;

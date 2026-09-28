@@ -1,26 +1,31 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import type { Prisma } from "@prisma/client";
-import { Inbox, SearchX } from "lucide-react";
+import { redirect } from "next/navigation";
+import { Inbox, Plus, SearchX, SquareKanban } from "lucide-react";
 import { Card, EmptyState, LinkButton, PageHeader } from "@/components/admin/ui";
 import { requireAdmin } from "@/lib/admin/dal";
-import { LEAD_PIPELINE, LEAD_STATUS } from "@/lib/admin/labels";
+import { LEAD_STATUS } from "@/lib/admin/labels";
 import { db } from "@/lib/db";
-import { LeadBoard, type BoardColumn } from "./_components/LeadBoard";
+import { CrmTabs } from "./_components/CrmTabs";
 import { LeadTable } from "./_components/LeadTable";
-import { Pagination, SearchForm, StatusChips, ViewToggle } from "./_components/Toolbar";
-import { crmHref, firstParam, isLeadStatus, plural, type CrmView } from "./_lib/helpers";
+import { Pagination, SearchForm, StatusChips } from "./_components/Toolbar";
+import { crmHref, firstParam, isLeadStatus, leadSearchWhere, plural } from "./_lib/helpers";
 import { leadListSelect } from "./_lib/select";
+import { pipelineHref } from "./pipeline/_lib/filters";
+import { countOverdueActivities } from "./pipeline/_lib/data";
 
-export const metadata: Metadata = { title: "CRM" };
+export const metadata: Metadata = { title: "Leads" };
 
 const PAGE_SIZE = 25;
-/** Cards per board lane; the rest are one click away in the filtered table. */
-const BOARD_LANE_LIMIT = 50;
 
 const newestFirst: Prisma.LeadOrderByWithRelationInput[] = [{ createdAt: "desc" }, { id: "desc" }];
 
-export default async function CrmPage({
+/**
+ * The Leads list: every opportunity in one searchable table, Lost included
+ * (the pipeline board leaves them out). The kanban lives at /admin/crm/pipeline.
+ */
+export default async function LeadsPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -29,41 +34,25 @@ export default async function CrmPage({
   const sp = await searchParams;
 
   const q = (firstParam(sp.q) ?? "").trim().slice(0, 100);
-  const view: CrmView = firstParam(sp.view) === "board" ? "board" : "table";
+  // The board used to live here as ?view=board; old links go to the pipeline.
+  if (firstParam(sp.view) === "board") redirect(pipelineHref({ q }));
+
   const rawStatus = firstParam(sp.status);
-  // The board shows every stage side by side, so a stage filter only applies to the table.
-  const status = view === "table" && isLeadStatus(rawStatus) ? rawStatus : null;
+  const status = isLeadStatus(rawStatus) ? rawStatus : null;
   const requestedPage = Math.max(1, Number.parseInt(firstParam(sp.page) ?? "1", 10) || 1);
+  const searchWhere = leadSearchWhere(q);
+  const now = new Date();
 
-  // Prisma's `contains` becomes ILIKE '%…%' without escaping, so "%" and "_"
-  // in the query would act as wildcards ("_" alone matched every lead).
-  // Backslash is Postgres's default LIKE escape character.
-  const term = q.replace(/[\\%_]/g, (c) => `\\${c}`);
-  const searchWhere: Prisma.LeadWhereInput = q
-    ? {
-        OR: [
-          { fullName: { contains: term, mode: "insensitive" } },
-          { email: { contains: term, mode: "insensitive" } },
-          { companyName: { contains: term, mode: "insensitive" } },
-        ],
-      }
-    : {};
-
-  const [totalLeads, newLeads, grouped] = await Promise.all([
+  const [totalLeads, newLeads, grouped, overdueActivities] = await Promise.all([
     db.lead.count(),
     db.lead.count({ where: { status: "NEW" } }),
     // Chip counts follow the search but not the stage filter, so every chip
     // says how many results clicking it would show.
-    db.lead.groupBy({
-      by: ["status"],
-      where: searchWhere,
-      _count: { _all: true },
-      _sum: { estimatedValueFils: true },
-    }),
+    db.lead.groupBy({ by: ["status"], where: searchWhere, _count: { _all: true } }),
+    countOverdueActivities(now),
   ]);
 
   const countByStatus = new Map<string, number>(grouped.map((g) => [g.status, g._count._all]));
-  const valueByStatus = new Map<string, number>(grouped.map((g) => [g.status, g._sum.estimatedValueFils ?? 0]));
   const matchingAll = grouped.reduce((sum, g) => sum + g._count._all, 0);
   const matching = status ? (countByStatus.get(status) ?? 0) : matchingAll;
 
@@ -77,7 +66,13 @@ export default async function CrmPage({
       <EmptyState
         icon={Inbox}
         title="No leads yet"
-        description="Enquiries from the website contact form land here automatically, and you get an email for each one."
+        description="Enquiries from the website contact form land here automatically, and you get an email for each one. Clients you approach yourself can be added on the pipeline."
+        action={
+          <LinkButton href="/admin/crm/pipeline?new=1" size="sm">
+            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+            New opportunity
+          </LinkButton>
+        }
       />
     );
   } else if (matching === 0) {
@@ -92,37 +87,19 @@ export default async function CrmPage({
             <>
               Nothing matches{" "}
               <span className="font-semibold text-ink-700 [overflow-wrap:anywhere]">&ldquo;{q}&rdquo;</span>
-              {status ? ` in ${LEAD_STATUS[status].label}` : ""}. Try a different name, email address or company.
+              {status ? ` in ${LEAD_STATUS[status].label}` : ""}. Try a different name, company or email address.
             </>
           ) : (
             "Nothing is at this stage of the pipeline right now."
           )
         }
         action={
-          <LinkButton href={crmHref({ view })} variant="secondary" size="sm">
+          <LinkButton href={crmHref({})} variant="secondary" size="sm">
             Clear filters
           </LinkButton>
         }
       />
     );
-  } else if (view === "board") {
-    const lanes = await Promise.all(
-      LEAD_PIPELINE.map((s) =>
-        db.lead.findMany({
-          where: { AND: [searchWhere, { status: s }] },
-          orderBy: newestFirst,
-          take: BOARD_LANE_LIMIT,
-          select: leadListSelect,
-        }),
-      ),
-    );
-    const columns: BoardColumn[] = LEAD_PIPELINE.map((s, i) => ({
-      status: s,
-      count: countByStatus.get(s) ?? 0,
-      valueFils: valueByStatus.get(s) ?? 0,
-      leads: lanes[i],
-    }));
-    content = <LeadBoard columns={columns} q={q} />;
   } else {
     const leads = await db.lead.findMany({
       where: status ? { AND: [searchWhere, { status }] } : searchWhere,
@@ -133,7 +110,7 @@ export default async function CrmPage({
     });
     content = (
       <Card padded={false}>
-        <LeadTable leads={leads} />
+        <LeadTable leads={leads} now={now} />
         <Pagination
           page={page}
           pageCount={pageCount}
@@ -147,9 +124,10 @@ export default async function CrmPage({
 
   return (
     <>
+      <CrmTabs active="leads" overdueActivities={overdueActivities} />
       <PageHeader
-        eyebrow="Pipeline"
-        title="CRM"
+        eyebrow="CRM"
+        title="Leads"
         description={
           <>
             {plural(totalLeads, "lead")}
@@ -161,28 +139,26 @@ export default async function CrmPage({
             )}
           </>
         }
-        actions={totalLeads > 0 ? <ViewToggle view={view} q={q} status={status} /> : undefined}
+        actions={
+          <>
+            <LinkButton href={pipelineHref({ q })} variant="secondary">
+              <SquareKanban className="h-4 w-4" aria-hidden="true" />
+              Pipeline
+            </LinkButton>
+            <LinkButton href="/admin/crm/pipeline?new=1">
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              New opportunity
+            </LinkButton>
+          </>
+        }
       />
 
       {totalLeads > 0 && (
         <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="w-full xl:order-last xl:w-80 xl:shrink-0">
-            <SearchForm q={q} view={view} status={status} />
+            <SearchForm q={q} status={status} />
           </div>
-          {view === "table" ? (
-            <StatusChips active={status} counts={countByStatus} total={matchingAll} q={q} />
-          ) : (
-            <p className="text-[0.8rem] text-ink-500">
-              {q ? (
-                <>
-                  {plural(matchingAll, "lead")} matching{" "}
-                  <span className="font-semibold text-ink-700 [overflow-wrap:anywhere]">&ldquo;{q}&rdquo;</span>
-                </>
-              ) : (
-                "Every stage of the pipeline, newest leads first."
-              )}
-            </p>
-          )}
+          <StatusChips active={status} counts={countByStatus} total={matchingAll} q={q} />
         </div>
       )}
 

@@ -31,51 +31,120 @@ enum ClientType {
 }
 
 model Lead {
-  id                 String     @id @default(cuid())
-  createdAt          DateTime   @default(now())
-  updatedAt          DateTime   @updatedAt
-  status             LeadStatus @default(NEW)
-  source             String     @default("website")
+  id        String     @id @default(cuid())
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  /// Pipeline stage. LOST cards leave the board (like Odoo's archived-lost).
+  status    LeadStatus @default(NEW)
+  /// "website" (contact form), "manual" (quick-created card), "demo" (seed).
+  source    String     @default("website")
 
-  clientType         ClientType
-  fullName           String
-  email              String
-  phone              String
-  country            String
-  city               String
-  contactPreference  String
+  /// Opportunity name shown on the pipeline card, e.g. "B/L intake automation".
+  title             String?
+  clientType        ClientType @default(COMPANY)
+  fullName          String
+  /// Contact details are optional: a manually created card for a client you
+  /// are approaching may only have a name and a note to begin with.
+  email             String?
+  phone             String?
+  country           String?
+  city              String?
+  contactPreference String?
 
-  companyName        String?
-  role               String?
-  companySize        String?
-  industry           String?
+  companyName String?
+  role        String?
+  companySize String?
+  industry    String?
 
-  services           String[]
-  systems            String?
-  timeline           String
-  budget             String
-  message            String
+  services String[]
+  systems  String?
+  timeline String?
+  budget   String?
+  message  String?
 
-  /// Admin's own estimate of deal size, in fils.
+  /// Expected revenue, in fils.
   estimatedValueFils Int?
+  /// 0–3 stars.
+  priority           Int       @default(0)
+  /// 0–100. Null means "use the stage default".
+  probability        Int?
+  expectedCloseDate  DateTime?
+  tags               String[]  @default([])
+  /// Kanban order within a stage. Float so a card can be dropped between two
+  /// others without renumbering the column.
+  sortOrder          Float     @default(0)
 
-  notes    Note[]
-  quotes   Quote[]
-  invoices Invoice[]
-  projects Project[]
+  wonAt           DateTime?
+  lostAt          DateTime?
+  lostReason      String?
+  lostNote        String?
+  /// The stage a lost opportunity was in, so "Restore" can put it back there.
+  stageBeforeLost LeadStatus?
 
-  @@index([status])
+  /// Salesperson responsible for the opportunity (Odoo's "Salesperson").
+  ownerId String?
+  owner   AdminUser? @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  notes      Note[]
+  activities Activity[]
+  quotes     Quote[]
+  invoices   Invoice[]
+  projects   Project[]
+  agreements Agreement[]
+
+  @@index([status, sortOrder])
   @@index([createdAt])
+  @@index([ownerId])
+}
+
+/// Timeline entry on a lead: a note the admin wrote, or an event the system
+/// recorded (stage moved, quote accepted, agreement generated, …).
+enum NoteKind {
+  NOTE
+  EVENT
 }
 
 model Note {
-  id        String   @id @default(cuid())
-  createdAt DateTime @default(now())
+  id        String     @id @default(cuid())
+  createdAt DateTime   @default(now())
+  kind      NoteKind   @default(NOTE)
   body      String
   leadId    String
-  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  lead      Lead       @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  /// Who wrote the note or triggered the event. Null for system events
+  /// (e.g. a website enquiry) and for authors whose account was removed.
+  authorId  String?
+  author    AdminUser? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([leadId, createdAt])
+}
+
+enum ActivityType {
+  CALL
+  EMAIL
+  MEETING
+  TODO
+  FOLLOW_UP
+}
+
+/// A scheduled follow-up on a lead (Odoo "activity"). Open until doneAt is set.
+model Activity {
+  id         String       @id @default(cuid())
+  createdAt  DateTime     @default(now())
+  type       ActivityType @default(FOLLOW_UP)
+  summary    String
+  note       String?
+  /// Calendar day, stored at 12:00 UTC (see src/lib/admin/time.ts).
+  dueDate    DateTime
+  doneAt     DateTime?
+  feedback   String?
+  leadId     String
+  lead       Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  assigneeId String?
+  assignee   AdminUser?   @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
 
   @@index([leadId])
+  @@index([doneAt, dueDate])
 }
 
 // ─── Billing ─────────────────────────────────────────────────────────────────
@@ -113,12 +182,14 @@ model Quote {
   clientEmail   String
   clientCompany String?
 
-  leadId  String?
-  lead    Lead?      @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  items   LineItem[]
-  invoice Invoice?
+  leadId    String?
+  lead      Lead?      @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  items     LineItem[]
+  invoice   Invoice?
+  agreement Agreement?
 
   @@index([status])
+  @@index([leadId])
 }
 
 model Invoice {
@@ -146,17 +217,31 @@ model Invoice {
   project   Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
   items     LineItem[]
 
+  /// Set when the invoice bills one stage of a service agreement's payment
+  /// schedule (Section 2). One invoice per stage per agreement.
+  agreementId String?
+  agreement   Agreement?   @relation(fields: [agreementId], references: [id], onDelete: SetNull)
+  installment Installment?
+
+  @@unique([agreementId, installment])
   @@index([status])
   @@index([dueDate])
 }
 
+/// The three stages of a service agreement's payment schedule.
+enum Installment {
+  DEPOSIT
+  MILESTONE
+  FINAL
+}
+
 model LineItem {
-  id             String   @id @default(cuid())
-  description    String
+  id            String @id @default(cuid())
+  description   String
   /// Quantity may be fractional (e.g. 1.5 days).
-  quantity       Float
-  unitPriceFils  Int
-  position       Int      @default(0)
+  quantity      Float
+  unitPriceFils Int
+  position      Int    @default(0)
 
   quoteId   String?
   quote     Quote?   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
@@ -194,12 +279,14 @@ model Project {
   dueDate     DateTime?
   valueFils   Int?
 
-  leadId   String?
-  lead     Lead?     @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  tasks    Task[]
-  invoices Invoice[]
+  leadId    String?
+  lead      Lead?      @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  tasks     Task[]
+  invoices  Invoice[]
+  agreement Agreement?
 
   @@index([status])
+  @@index([leadId])
 }
 
 model Task {
@@ -213,6 +300,100 @@ model Task {
   project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
+}
+
+// ─── Service agreements ──────────────────────────────────────────────────────
+
+enum AgreementStatus {
+  DRAFT
+  SENT
+  SIGNED
+  CANCELLED
+}
+
+/// A Service Agreement plus its Statement of Work, generated from a quotation.
+/// Money and client details are SNAPSHOTS taken from the quote at generation
+/// (or on an explicit "sync from quotation"), so a signed agreement never
+/// changes underneath the client if the quote is edited afterwards.
+model Agreement {
+  id        String          @id @default(cuid())
+  number    String          @unique
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  status    AgreementStatus @default(DRAFT)
+
+  /// Calendar dates (12:00 UTC).
+  effectiveDate DateTime
+  sentAt        DateTime?
+  signedAt      DateTime?
+
+  clientName    String
+  clientEmail   String?
+  clientCompany String?
+
+  currency     String @default("AED")
+  subtotalFils Int
+  vatBps       Int
+  totalFils    Int
+
+  // Section 2 — payment schedule. The three percentages must total 100.
+  depositPct            Int    @default(50)
+  midpointPct           Int    @default(25)
+  finalPct              Int    @default(25)
+  midpointMilestone     String @default("mid-point delivery")
+  invoiceDueDays        Int    @default(14)
+  /// Monthly late fee, in basis points (200 = 2%).
+  lateFeeBps            Int    @default(200)
+  // Sections 3, 7 and 9.
+  feedbackDays          Int    @default(3)
+  warrantyDays          Int    @default(30)
+  terminationNoticeDays Int    @default(14)
+
+  // Statement of Work.
+  projectName  String
+  background   String   @default("")
+  scope        String[] @default([])
+  packageRef   String?
+  deliverables String[] @default([])
+  outOfScope   String[] @default([])
+  assumptions  String[] @default([])
+  /// [{ "label": string, "date": "YYYY-MM-DD" | null }]
+  milestones   Json     @default("[]")
+
+  leadId    String?
+  lead      Lead?     @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  quoteId   String?   @unique
+  quote     Quote?    @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  projectId String?   @unique
+  project   Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  invoices  Invoice[]
+
+  @@index([status])
+  @@index([leadId])
+}
+
+// ─── Admin accounts ──────────────────────────────────────────────────────────
+
+/// A person who can sign in to /admin. Created with `npm run admin:user`.
+model AdminUser {
+  id             String    @id @default(cuid())
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  /// Sign-in ID, stored lower-case: sign-in is case-insensitive.
+  username       String    @unique
+  /// Display name shown in the dashboard, e.g. "Hieu".
+  name           String
+  /// scrypt hash — see src/lib/admin/password.ts. Never the password itself.
+  passwordHash   String
+  /// Sessions carry this number; bumping it (password change, "sign out
+  /// everywhere") invalidates every session issued before.
+  sessionVersion Int       @default(1)
+  active         Boolean   @default(true)
+  lastLoginAt    DateTime?
+
+  leads      Lead[]     @relation("LeadOwner")
+  notes      Note[]
+  activities Activity[]
 }
 
 // ─── Infrastructure ──────────────────────────────────────────────────────────

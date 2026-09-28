@@ -58,7 +58,7 @@ export function StatusNote({ tone = "neutral", children }: { tone?: "neutral" | 
         "mt-2 text-[0.8rem] leading-relaxed",
         tone === "red" && "text-red-600",
         tone === "amber" && "text-amber-700",
-        tone === "mint" && "text-[#2f8a78]",
+        tone === "mint" && "text-mint-ink",
         tone === "neutral" && "text-ink-500",
       )}
     >

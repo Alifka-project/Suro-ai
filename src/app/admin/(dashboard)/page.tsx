@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Banknote, ChartArea, FilePlus, Users } from "lucide-react";
+import { Banknote, ChartArea, FilePlus, SquareKanban } from "lucide-react";
 import { EmptyState, LinkButton, PageHeader } from "@/components/admin/ui";
 import { requireAdmin } from "@/lib/admin/dal";
 import { formatMoney } from "@/lib/admin/money";
@@ -9,7 +9,7 @@ import { LeadsTrendChart, RevenueChart } from "./_analytics/charts";
 import { getOverviewData } from "./_analytics/data";
 import { businessYear } from "./_analytics/dates";
 import { Kpis } from "./_analytics/Kpis";
-import { ActiveProjects, AttentionInvoices, RecentLeads } from "./_analytics/lists";
+import { ActiveProjects, AgreementsPanel, AttentionInvoices, OverdueFollowUps, RecentLeads } from "./_analytics/lists";
 import { MiniTable } from "./_analytics/MiniTable";
 import { PipelineBreakdown } from "./_analytics/PipelineBreakdown";
 import { ServicesBars } from "./_analytics/ServicesBars";
@@ -44,9 +44,9 @@ export default async function AnalyticsOverviewPage() {
   const pipelineFootnote =
     closed > 0
       ? `Win rate ${Math.round((pipeline.won / closed) * 100)}% · ${pipeline.won} of ${closed} closed ${
-          closed === 1 ? "lead" : "leads"
-        } won`
-      : "Win rate appears once a lead is marked won or lost.";
+          closed === 1 ? "deal" : "deals"
+        } won, ${pipeline.lost} lost`
+      : "Win rate appears once a deal is marked won or lost.";
 
   return (
     <>
@@ -56,9 +56,9 @@ export default async function AnalyticsOverviewPage() {
         description={`Snapshot as of ${formatBusinessDate(data.now)}. Trends cover the last 12 weeks and 6 months.`}
         actions={
           <>
-            <LinkButton href="/admin/crm" variant="secondary">
-              <Users className="h-4 w-4" aria-hidden="true" />
-              Open CRM
+            <LinkButton href="/admin/crm/pipeline" variant="secondary">
+              <SquareKanban className="h-4 w-4" aria-hidden="true" />
+              Open pipeline
             </LinkButton>
             <LinkButton href="/admin/billing/quotes/new">
               <FilePlus className="h-4 w-4" aria-hidden="true" />
@@ -111,6 +111,21 @@ export default async function AnalyticsOverviewPage() {
           </ChartCard>
 
           <PipelineBreakdown stages={pipeline.stages} totalLeads={pipeline.totalLeads} footnote={pipelineFootnote} />
+        </div>
+
+        {/* What to act on next: follow-ups that slipped, paperwork waiting on the client. */}
+        <div className="grid gap-4 lg:gap-5 lg:grid-cols-2">
+          <OverdueFollowUps
+            items={data.followUps.items}
+            overdueTotal={data.followUps.overdueTotal}
+            dueToday={data.followUps.dueToday}
+          />
+          <AgreementsPanel
+            counts={data.agreements.counts}
+            total={data.agreements.total}
+            awaiting={data.agreements.awaiting}
+            awaitingTotal={data.agreements.awaitingTotal}
+          />
         </div>
 
         <div className="grid gap-4 lg:gap-5 xl:grid-cols-3">

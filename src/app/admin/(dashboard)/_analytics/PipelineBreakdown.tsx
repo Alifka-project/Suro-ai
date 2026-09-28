@@ -22,8 +22,9 @@ export type PipelineRow = {
 };
 
 /**
- * Funnel-style bar list: one row per LEAD_PIPELINE stage, bar length by lead
- * count or by estimated value. Every number is printed beside its bar, so the
+ * Funnel-style bar list: one row per board stage (New … Won; lost
+ * opportunities are out of the pipeline), bar length by count or by expected
+ * revenue. Every number is printed beside its bar, so the
  * list is its own table view and nothing hides behind a hover. The dot beside
  * each stage is that stage's CRM colour; the bars share one hue because they
  * encode a single measure.
@@ -48,7 +49,7 @@ export function PipelineBreakdown({
     <Card className={cn("flex min-w-0 flex-col", className)}>
       <CardHeader
         title="Pipeline by stage"
-        subtitle={`${totalLeads} ${totalLeads === 1 ? "lead" : "leads"} in total`}
+        subtitle={`${totalLeads} ${totalLeads === 1 ? "opportunity" : "opportunities"} on the board · lost excluded`}
         action={
           totalLeads > 0 ? (
             <Segmented<Metric>
@@ -67,14 +68,14 @@ export function PipelineBreakdown({
       {totalLeads === 0 ? (
         <EmptyState
           icon={Target}
-          title="No leads yet"
-          description="Enquiries from the website form will land here, stage by stage."
+          title="Nothing in the pipeline"
+          description="Website enquiries and the cards you add on the pipeline board land here, stage by stage."
         />
       ) : (
         <>
           {metric === "value" && !hasValues && (
             <p className="mb-3 rounded-xl bg-haze px-3 py-2 text-[0.78rem] text-ink-500">
-              No lead has an estimated value yet. Add one on the lead page to size the pipeline.
+              No opportunity has an expected revenue yet. Add one on the lead page to size the pipeline.
             </p>
           )}
           <ul className="space-y-3.5" aria-label="Leads per pipeline stage">

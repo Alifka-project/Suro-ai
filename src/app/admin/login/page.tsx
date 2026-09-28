@@ -1,5 +1,7 @@
 import Image from "next/image";
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { getAdmin } from "@/lib/admin/dal";
 import { LoginForm } from "./LoginForm";
 
 export const metadata: Metadata = { title: "Sign in" };
@@ -10,6 +12,8 @@ export default async function LoginPage({
   searchParams: Promise<{ next?: string }>;
 }) {
   const { next } = await searchParams;
+  // Already signed in with a valid, current session: nothing to do here.
+  if (await getAdmin()) redirect("/admin");
 
   return (
     <main className="relative grid min-h-dvh place-items-center overflow-hidden px-4 py-12">

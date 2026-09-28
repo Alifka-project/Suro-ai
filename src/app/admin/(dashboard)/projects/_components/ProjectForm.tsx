@@ -88,7 +88,7 @@ export function ProjectForm({
 
       <div className="flex flex-col-reverse gap-2 border-t border-ink-100 pt-5 sm:flex-row sm:items-center sm:justify-end">
         {state.status === "success" && (
-          <p role="status" className="flex items-center gap-1.5 text-[0.8rem] font-medium text-[#2f8a78] sm:mr-auto">
+          <p role="status" className="flex items-center gap-1.5 text-[0.8rem] font-medium text-mint-ink sm:mr-auto">
             <CircleCheck className="h-4 w-4" aria-hidden="true" />
             {state.message}
           </p>

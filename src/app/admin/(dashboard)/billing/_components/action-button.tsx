@@ -1,9 +1,18 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, type ReactNode } from "react";
-import { CircleAlert, LoaderCircle } from "lucide-react";
+import Link from "next/link";
+import {
+  createContext,
+  useActionState,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { ArrowRight, CircleAlert, CircleCheck, LoaderCircle, X } from "lucide-react";
 import { Button, cn, type ButtonVariant } from "@/components/admin/ui";
-import type { ActionState } from "../_lib/types";
+import type { ActionState, NoticeLink } from "../_lib/types";
 
 type Confirm = {
   title: string;
@@ -13,10 +22,74 @@ type Confirm = {
   tone?: "danger" | "primary";
 };
 
+type Notice = { text: string; links: NoticeLink[]; at: number };
+
+/**
+ * Where an ActionButton hands its success notice. A button usually disappears
+ * once its action succeeds ("Mark accepted" is gone once the quote is
+ * accepted), and its own state goes with it — so a panel that must show what
+ * happened wraps its buttons in <ActionNotices>, which stays mounted.
+ */
+const NoticeContext = createContext<((notice: Notice) => void) | null>(null);
+
+function NoticeMessage({ notice, onDismiss }: { notice: Notice; onDismiss?: () => void }) {
+  return (
+    <div className="flex items-start gap-2 rounded-xl border border-mint-600/30 bg-mint-500/10 px-3 py-2.5 text-[0.8rem] text-[#23695c]">
+      <CircleCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+      <div className="min-w-0 flex-1">
+        <p className="break-words font-medium leading-snug">{notice.text}</p>
+        {notice.links.length > 0 && (
+          <ul className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+            {notice.links.map((link) => (
+              <li key={link.href}>
+                <Link
+                  href={link.href}
+                  className="inline-flex items-center gap-1 rounded font-semibold text-abyss-600 underline-offset-2 hover:underline"
+                >
+                  {link.label}
+                  <ArrowRight className="h-3 w-3" aria-hidden="true" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      {onDismiss && (
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Dismiss message"
+          className="-m-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[#23695c]/70 transition-colors hover:bg-mint-500/15 hover:text-[#23695c]"
+        >
+          <X className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Keeps the latest success notice of any ActionButton inside it on screen,
+ * in a polite live region, after the button itself has re-rendered away.
+ */
+export function ActionNotices({ children, className }: { children: ReactNode; className?: string }) {
+  const [notice, setNotice] = useState<Notice | null>(null);
+  return (
+    <NoticeContext value={setNotice}>
+      <div role="status" aria-live="polite" className={cn(notice && "mb-3", className)}>
+        {notice && <NoticeMessage key={notice.at} notice={notice} onDismiss={() => setNotice(null)} />}
+      </div>
+      {children}
+    </NoticeContext>
+  );
+}
+
 /**
  * One Server Action behind one button. Shows its own pending state (which
  * also blocks double submits) and any error the action returns. With
  * `confirm`, the first click opens an inline confirmation step instead.
+ * A success notice goes to the surrounding <ActionNotices>, or is shown
+ * under the button when there is none.
  */
 export function ActionButton({
   action,
@@ -37,9 +110,23 @@ export function ActionButton({
   confirm?: Confirm;
   className?: string;
 }) {
-  const [state, formAction, pending] = useActionState(action, undefined);
+  const report = useContext(NoticeContext);
+  const [state, formAction, pending] = useActionState(async (previous: ActionState, formData: FormData) => {
+    const next = await action(previous, formData);
+    if (next?.notice && report) report({ text: next.notice, links: next.links ?? [], at: Date.now() });
+    return next;
+  }, undefined);
   const [confirming, setConfirming] = useState(false);
   const cancelRef = useRef<HTMLButtonElement>(null);
+
+  // A button that is still here after its action succeeded (e.g. "Refresh
+  // from quotation") closes its confirmation step; an error keeps it open,
+  // next to the message. Adjusted during render, not in an effect.
+  const [settled, setSettled] = useState(state);
+  if (state !== settled) {
+    setSettled(state);
+    if (!state?.error) setConfirming(false);
+  }
 
   useEffect(() => {
     if (confirming) cancelRef.current?.focus();
@@ -62,6 +149,14 @@ export function ActionButton({
       {state.error}
     </p>
   ) : null;
+
+  // Only when no <ActionNotices> is listening; otherwise it would show twice.
+  const notice =
+    !report && state?.notice ? (
+      <div role="status" className="mt-2">
+        <NoticeMessage notice={{ text: state.notice, links: state.links ?? [], at: 0 }} />
+      </div>
+    ) : null;
 
   if (confirm && confirming) {
     const danger = (confirm.tone ?? "danger") === "danger";
@@ -107,6 +202,7 @@ export function ActionButton({
           {children}
         </Button>
         {error}
+        {notice}
       </div>
     );
   }
@@ -118,6 +214,7 @@ export function ActionButton({
         {pending ? spinner : children}
       </Button>
       {error}
+      {notice}
     </form>
   );
 }

@@ -4,15 +4,30 @@ import {
   CalendarClock,
   CircleCheck,
   Clock,
+  FileSignature,
   FolderKanban,
   Inbox,
+  ListTodo,
+  Mail,
+  Phone,
+  Repeat,
   TriangleAlert,
+  Users,
+  type LucideIcon,
 } from "lucide-react";
 import { Card, CardHeader, EmptyState, LinkButton, StatusBadge, cn } from "@/components/admin/ui";
-import { LEAD_STATUS, PROJECT_STATUS, initials, timeAgo } from "@/lib/admin/labels";
+import { LEAD_STATUS, PROJECT_STATUS, TONE_DOT, initials, timeAgo } from "@/lib/admin/labels";
 import { formatMoney } from "@/lib/admin/money";
+import { ACTIVITY_TYPE } from "@/lib/admin/pipeline";
 import { formatBusinessDate } from "@/lib/admin/time";
-import type { ActiveProject, AttentionInvoice, RecentLead } from "./data";
+import type {
+  ActiveProject,
+  AgreementStatusCount,
+  AttentionInvoice,
+  AwaitingAgreement,
+  OverdueFollowUp,
+  RecentLead,
+} from "./data";
 
 /* Presentational server components for the overview's lists. They receive
    plain data from the page (which has already passed requireAdmin) and never
@@ -40,46 +55,53 @@ export function RecentLeads({ leads, className }: { leads: RecentLead[]; classNa
     <Card className={cn("min-w-0", className)}>
       <CardHeader
         title="Recent leads"
-        subtitle="Latest enquiries from the website form"
+        subtitle="Newest opportunities, from the website form or added by hand"
         action={<ViewAll href="/admin/crm" />}
       />
       {leads.length === 0 ? (
         <EmptyState
           icon={Inbox}
           title="No leads yet"
-          description="When a visitor submits the enquiry form on the website, the lead appears here."
+          description="Website enquiries appear here as they arrive, along with any opportunity you add on the pipeline."
         />
       ) : (
         <ul className="divide-y divide-ink-100/70">
-          {leads.map((lead) => (
-            <li key={lead.id}>
-              <Link href={`/admin/crm/${lead.id}`} className={rowLink}>
-                <span
-                  aria-hidden="true"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-azure-500/15 to-aqua-500/20 font-display text-[0.72rem] font-bold text-abyss-600"
-                >
-                  {initials(lead.name)}
-                </span>
-                <span className="min-w-0 flex-1">
+          {leads.map((lead) => {
+            // Under the opportunity title: whichever of company and contact the
+            // title doesn't already say.
+            const secondary =
+              [lead.company, lead.name].filter((part): part is string => !!part && part !== lead.title).join(" · ") ||
+              (lead.isIndividual ? "Individual" : "No company given");
+            return (
+              <li key={lead.id}>
+                <Link href={`/admin/crm/${lead.id}`} className={rowLink}>
                   <span
-                    className="block truncate text-[0.86rem] font-semibold text-ink-900 group-hover:text-abyss-600"
-                    title={lead.name}
+                    aria-hidden="true"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-azure-500/15 to-aqua-500/20 font-display text-[0.72rem] font-bold text-abyss-600"
                   >
-                    {lead.name}
+                    {initials(lead.name)}
                   </span>
-                  <span className="block truncate text-[0.76rem] text-ink-500" title={lead.company ?? undefined}>
-                    {lead.company || (lead.isIndividual ? "Individual" : "No company given")}
+                  <span className="min-w-0 flex-1">
+                    <span
+                      className="block truncate text-[0.86rem] font-semibold text-ink-900 group-hover:text-abyss-600"
+                      title={lead.title}
+                    >
+                      {lead.title}
+                    </span>
+                    <span className="block truncate text-[0.76rem] text-ink-500" title={secondary}>
+                      {secondary}
+                    </span>
                   </span>
-                </span>
-                <span className="flex shrink-0 flex-col items-end gap-1">
-                  <StatusBadge status={lead.status} map={LEAD_STATUS} />
-                  <time dateTime={lead.createdAt.toISOString()} className="text-[0.7rem] text-ink-600">
-                    {timeAgo(lead.createdAt)}
-                  </time>
-                </span>
-              </Link>
-            </li>
-          ))}
+                  <span className="flex shrink-0 flex-col items-end gap-1">
+                    <StatusBadge status={lead.status} map={LEAD_STATUS} />
+                    <time dateTime={lead.createdAt.toISOString()} className="text-[0.7rem] text-ink-600">
+                      {timeAgo(lead.createdAt)}
+                    </time>
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       )}
     </Card>
@@ -298,6 +320,245 @@ export function ActiveProjects({
           {total > projects.length && (
             <p className="mt-3 text-[0.75rem] text-ink-500">
               Showing the {projects.length} due soonest of {total}.
+            </p>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
+
+// ─── Overdue follow-ups ─────────────────────────────────────────────────────
+
+const ACTIVITY_ICONS: Record<(typeof ACTIVITY_TYPE)[keyof typeof ACTIVITY_TYPE]["icon"], LucideIcon> = {
+  Phone,
+  Mail,
+  Users,
+  ListTodo,
+  Repeat,
+};
+
+export function OverdueFollowUps({
+  items,
+  overdueTotal,
+  dueToday,
+  className,
+}: {
+  items: OverdueFollowUp[];
+  overdueTotal: number;
+  dueToday: number;
+  className?: string;
+}) {
+  const subtitle =
+    overdueTotal === 0 && dueToday === 0
+      ? "Calls, emails and meetings past their due date"
+      : [overdueTotal > 0 && `${overdueTotal} overdue`, dueToday > 0 && `${dueToday} due today`].filter(Boolean).join(" · ");
+
+  return (
+    <Card className={cn("min-w-0", className)}>
+      <CardHeader
+        title="Overdue follow-ups"
+        subtitle={subtitle}
+        action={<ViewAll href="/admin/crm/activities">Open planner</ViewAll>}
+      />
+      {items.length === 0 ? (
+        <EmptyState
+          icon={CircleCheck}
+          title="No overdue follow-ups"
+          description={
+            dueToday > 0
+              ? `Nothing is late. ${dueToday} ${dueToday === 1 ? "activity is" : "activities are"} due today.`
+              : "Every scheduled call, email and meeting is on time."
+          }
+        />
+      ) : (
+        <>
+          <ul className="divide-y divide-ink-100/70">
+            {items.map((a) => {
+              const type = ACTIVITY_TYPE[a.type];
+              const Icon = ACTIVITY_ICONS[type.icon];
+              return (
+                <li key={a.id}>
+                  <Link href={`/admin/crm/${a.leadId}`} className={rowLink}>
+                    <span
+                      aria-hidden="true"
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-500/10 text-red-600"
+                    >
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-baseline justify-between gap-3">
+                        <span
+                          className="min-w-0 truncate text-[0.86rem] font-semibold text-ink-900 group-hover:text-abyss-600"
+                          title={a.summary}
+                        >
+                          {a.summary}
+                        </span>
+                        <span className="inline-flex shrink-0 items-center gap-1 text-[0.72rem] font-semibold text-red-600">
+                          <TriangleAlert className="h-3.5 w-3.5" aria-hidden="true" />
+                          {a.dueLabel}
+                        </span>
+                      </span>
+                      <span className="mt-0.5 block truncate text-[0.76rem] text-ink-500" title={a.lead}>
+                        <span className="font-medium text-ink-700">{a.lead}</span>
+                        <span aria-hidden="true"> · </span>
+                        <span className="sr-only">, </span>
+                        {type.label}
+                        {a.assignee && (
+                          <>
+                            <span aria-hidden="true"> · </span>
+                            <span className="sr-only">, assigned to </span>
+                            {a.assignee}
+                          </>
+                        )}
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+          {overdueTotal > items.length && (
+            <p className="mt-3 text-[0.75rem] text-ink-500">
+              {overdueTotal - items.length} more in{" "}
+              <Link href="/admin/crm/activities" className="font-semibold text-abyss-600 hover:text-abyss-700">
+                Activities
+              </Link>
+              .
+            </p>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
+
+// ─── Service agreements ─────────────────────────────────────────────────────
+
+export function AgreementsPanel({
+  counts,
+  total,
+  awaiting,
+  awaitingTotal,
+  className,
+}: {
+  counts: AgreementStatusCount[];
+  total: number;
+  awaiting: AwaitingAgreement[];
+  awaitingTotal: number;
+  className?: string;
+}) {
+  const drafts = counts.find((c) => c.status === "DRAFT")?.count ?? 0;
+  const subtitle =
+    total === 0
+      ? "Generated from quotations when a deal is won"
+      : [
+          awaitingTotal > 0 ? `${awaitingTotal} awaiting signature` : "None awaiting signature",
+          drafts > 0 && `${drafts} ${drafts === 1 ? "draft" : "drafts"} to review`,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+
+  return (
+    <Card className={cn("min-w-0", className)}>
+      <CardHeader title="Service agreements" subtitle={subtitle} action={<ViewAll href="/admin/billing/agreements" />} />
+      {total === 0 ? (
+        <EmptyState
+          icon={FileSignature}
+          title="No agreements yet"
+          description="Accepting a quotation, or marking a deal Won in the CRM, generates its service agreement automatically."
+          action={
+            <LinkButton href="/admin/crm/pipeline" variant="secondary" size="sm">
+              Open pipeline
+            </LinkButton>
+          }
+        />
+      ) : (
+        <>
+          <ul aria-label="Agreements by status" className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
+            {counts.map((c) => (
+              <li key={c.status} className="min-w-0">
+                <Link
+                  href={`/admin/billing/agreements?status=${c.status}`}
+                  className="flex h-full flex-col justify-between gap-1 rounded-xl border border-ink-100 px-3 py-2.5 transition-colors hover:border-ink-200 hover:bg-haze/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azure-400/60"
+                >
+                  <span className="flex items-start gap-1.5 text-[0.72rem] font-medium leading-tight text-ink-600">
+                    <span aria-hidden="true" className={cn("mt-1 h-1.5 w-1.5 shrink-0 rounded-full", TONE_DOT[c.tone])} />
+                    {c.label}
+                  </span>
+                  <span
+                    className={cn(
+                      "font-display text-[1.3rem] font-bold leading-none tabular-nums",
+                      c.count === 0 ? "text-ink-400" : "text-ink-900",
+                    )}
+                  >
+                    {c.count}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+
+          <h3 className="mb-1 mt-5 font-mono text-[0.62rem] uppercase tracking-[0.14em] text-ink-550">
+            Awaiting signature
+          </h3>
+          {awaiting.length === 0 ? (
+            <p className="py-2 text-[0.8rem] text-ink-550">Nothing is out for signature right now.</p>
+          ) : (
+            <ul className="divide-y divide-ink-100/70">
+              {awaiting.map((a) => (
+                <li key={a.id}>
+                  <Link href={`/admin/billing/agreements/${a.id}`} className={rowLink}>
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+                        a.stale ? "bg-amber-400/15 text-amber-700" : "bg-azure-500/10 text-abyss-600",
+                      )}
+                    >
+                      <FileSignature className="h-4 w-4" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-baseline justify-between gap-3">
+                        <span
+                          className="min-w-0 truncate text-[0.86rem] font-semibold text-ink-900 group-hover:text-abyss-600"
+                          title={a.client}
+                        >
+                          {a.client}
+                        </span>
+                        <span className="shrink-0 text-[0.86rem] font-semibold text-ink-900 tabular-nums">
+                          {formatMoney(a.totalFils, a.currency)}
+                        </span>
+                      </span>
+                      <span className="mt-0.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+                        <span className="min-w-0 truncate text-[0.76rem] text-ink-500" title={a.projectName}>
+                          <span className="font-mono text-[0.72rem]">{a.number}</span>
+                          <span aria-hidden="true"> · </span>
+                          <span className="sr-only">, </span>
+                          {a.projectName}
+                        </span>
+                        <time
+                          dateTime={a.sentAt.toISOString()}
+                          title={formatBusinessDate(a.sentAt)}
+                          className={cn(
+                            "ml-auto inline-flex shrink-0 items-center gap-1 text-[0.72rem] font-semibold",
+                            a.stale ? "text-amber-700" : "text-ink-600",
+                          )}
+                        >
+                          {a.stale && <Clock className="h-3.5 w-3.5" aria-hidden="true" />}
+                          {a.waitingLabel}
+                          {a.stale && <span className="sr-only">, time to follow up</span>}
+                        </time>
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          {awaitingTotal > awaiting.length && (
+            <p className="mt-3 text-[0.75rem] text-ink-500">
+              Showing the {awaiting.length} waiting longest of {awaitingTotal}.
             </p>
           )}
         </>

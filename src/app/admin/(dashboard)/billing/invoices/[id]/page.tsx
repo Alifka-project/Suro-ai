@@ -1,9 +1,23 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Ban, Banknote, FileText, FolderKanban, Pencil, Send, Trash2, Undo2, UserRound } from "lucide-react";
-import type { InvoiceStatus } from "@prisma/client";
+import {
+  Ban,
+  Banknote,
+  FileSignature,
+  FileText,
+  FolderKanban,
+  Pencil,
+  Send,
+  Target,
+  Trash2,
+  Undo2,
+} from "lucide-react";
+import type { Installment, InvoiceStatus } from "@prisma/client";
 import { Card, CardHeader, Detail, LinkButton, PageHeader, StatusBadge } from "@/components/admin/ui";
 import { requireAdmin } from "@/lib/admin/dal";
+import { AGREEMENT_STATUS, INSTALLMENT_LABEL } from "@/lib/admin/agreement-terms";
+import { leadTitle } from "@/lib/admin/pipeline";
 import { effectiveInvoiceStatus } from "@/lib/admin/invoices";
 import { documentTotals, formatMoney, formatVat } from "@/lib/admin/money";
 import { INVOICE_STATUS, timeAgo } from "@/lib/admin/labels";
@@ -45,6 +59,16 @@ export default async function InvoicePage({ params }: Props) {
   const allowed = INVOICE_TRANSITIONS[invoice.status];
   const can = (s: InvoiceStatus) => allowed.includes(s);
   const statusFields = (next: InvoiceStatus) => ({ id: invoice.id, status: next });
+
+  // A stage of a service agreement's payment schedule: "Deposit (50%) of SA-2026-0001".
+  const agreement = invoice.agreement;
+  const stagePct: Record<Installment, number> | null = agreement
+    ? { DEPOSIT: agreement.depositPct, MILESTONE: agreement.midpointPct, FINAL: agreement.finalPct }
+    : null;
+  const stage =
+    agreement && stagePct && invoice.installment
+      ? `${INSTALLMENT_LABEL[invoice.installment]} (${stagePct[invoice.installment]}%)`
+      : null;
 
   let note: { tone: "neutral" | "red" | "amber" | "mint"; text: string };
   switch (status) {
@@ -108,6 +132,17 @@ export default async function InvoicePage({ params }: Props) {
                 {invoice.clientName}
                 {invoice.clientCompany ? ` · ${invoice.clientCompany}` : ""}
               </span>
+              {agreement && (
+                <span>
+                  ·{" "}
+                  <Link
+                    href={`/admin/billing/agreements/${agreement.id}#payment-schedule`}
+                    className="font-medium text-abyss-600 hover:underline"
+                  >
+                    {stage ? `${stage} of ${agreement.number}` : agreement.number}
+                  </Link>
+                </span>
+              )}
             </span>
           }
           actions={
@@ -252,7 +287,18 @@ export default async function InvoicePage({ params }: Props) {
             vatBps={invoice.vatBps}
             currency={invoice.currency}
             notes={invoice.notes}
-            reference={invoice.quote ? `Quotation ${invoice.quote.number}` : null}
+            reference={
+              agreement && stage
+                ? `${stage} · Service Agreement ${agreement.number}`
+                : invoice.quote
+                  ? `Quotation ${invoice.quote.number}`
+                  : null
+            }
+            paymentTerms={
+              agreement && stage
+                ? `Payment due within ${agreement.invoiceDueDays} ${agreement.invoiceDueDays === 1 ? "day" : "days"} of the invoice date, as per Section 2 of Service Agreement ${agreement.number}.`
+                : null
+            }
             stamp={stamp}
           />
         </div>
@@ -260,15 +306,26 @@ export default async function InvoicePage({ params }: Props) {
         <aside className="min-w-0 space-y-6 print:hidden xl:col-start-2 xl:row-start-2 xl:self-start">
           <Card>
             <CardHeader title="Linked records" />
-            {invoice.lead || invoice.project || invoice.quote ? (
+            {invoice.lead || invoice.project || invoice.quote || agreement ? (
               <ul className="space-y-2">
                 {invoice.lead && (
                   <LinkedRecord
                     href={`/admin/crm/${invoice.lead.id}`}
-                    icon={UserRound}
-                    label="Lead"
-                    title={invoice.lead.fullName}
-                    subtitle={invoice.lead.companyName}
+                    icon={Target}
+                    label="Opportunity"
+                    title={leadTitle(invoice.lead)}
+                    subtitle={
+                      invoice.lead.companyName ? `${invoice.lead.fullName} · ${invoice.lead.companyName}` : invoice.lead.fullName
+                    }
+                  />
+                )}
+                {agreement && (
+                  <LinkedRecord
+                    href={`/admin/billing/agreements/${agreement.id}#payment-schedule`}
+                    icon={FileSignature}
+                    label={`Service agreement · ${AGREEMENT_STATUS[agreement.status].label}`}
+                    title={agreement.number}
+                    subtitle={stage ? `${stage} of the payment schedule` : "Voided stage invoice, since reissued"}
                   />
                 )}
                 {invoice.project && (
@@ -290,7 +347,7 @@ export default async function InvoicePage({ params }: Props) {
               </ul>
             ) : (
               <p className="text-[0.82rem] text-ink-500">
-                Not linked to a lead or project.
+                Not linked to an opportunity or project.
                 {invoice.status === "DRAFT" && " Edit the draft to link one."}
               </p>
             )}

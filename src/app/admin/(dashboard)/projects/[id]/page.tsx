@@ -2,15 +2,29 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
-import { ArrowLeft, ArrowUpRight, CalendarDays, ListChecks, Pencil, Plus, Receipt, TriangleAlert } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  CalendarDays,
+  ChevronRight,
+  FileSignature,
+  FileText,
+  ListChecks,
+  Pencil,
+  Plus,
+  Receipt,
+  TriangleAlert,
+} from "lucide-react";
 import { requireAdmin } from "@/lib/admin/dal";
 import { db } from "@/lib/db";
+import { AGREEMENT_STATUS, INSTALLMENT_LABEL } from "@/lib/admin/agreement-terms";
 import { DEFAULT_CURRENCY, documentTotals, formatMoney } from "@/lib/admin/money";
 import { effectiveInvoiceStatus } from "@/lib/admin/invoices";
 import {
   INVOICE_STATUS,
   LEAD_STATUS,
   PROJECT_STATUS,
+  QUOTE_STATUS,
   TASK_STATUS,
   formatDate,
   initials,
@@ -62,6 +76,17 @@ const getProject = cache(async (id: string) => {
     where: { id },
     include: {
       lead: { select: { id: true, fullName: true, companyName: true, email: true, status: true } },
+      agreement: {
+        select: {
+          id: true,
+          number: true,
+          status: true,
+          totalFils: true,
+          currency: true,
+          signedAt: true,
+          quote: { select: { id: true, number: true, status: true } },
+        },
+      },
       tasks: { orderBy: [{ position: "asc" }, { createdAt: "asc" }] },
       invoices: {
         orderBy: { issueDate: "desc" },
@@ -76,6 +101,8 @@ const getProject = cache(async (id: string) => {
           leadId: true,
           clientName: true,
           clientCompany: true,
+          installment: true,
+          agreement: { select: { number: true } },
           items: { select: { quantity: true, unitPriceFils: true } },
         },
       },
@@ -147,6 +174,7 @@ export default async function ProjectDetailPage({ params }: { params: Params }) 
   const newInvoiceHref = `/admin/billing/invoices/new?${invoiceQuery.toString()}`;
 
   const lead = project.lead;
+  const agreement = project.agreement;
 
   return (
     <>
@@ -383,7 +411,7 @@ export default async function ProjectDetailPage({ params }: { params: Params }) 
                     href={`/admin/crm/${lead.id}`}
                     className="shrink-0 text-[0.78rem] font-semibold text-abyss-600 hover:underline"
                   >
-                    Open in CRM
+                    Open opportunity
                   </Link>
                 )
               }
@@ -399,12 +427,17 @@ export default async function ProjectDetailPage({ params }: { params: Params }) 
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold text-ink-900">{lead.fullName}</p>
                   <p className="truncate text-[0.8rem] text-ink-500">{lead.companyName ?? "Individual client"}</p>
-                  <a
-                    href={`mailto:${lead.email}`}
-                    className="mt-0.5 block truncate text-[0.8rem] text-abyss-600 hover:underline"
-                  >
-                    {lead.email}
-                  </a>
+                  {/* Contact details are optional in the CRM. */}
+                  {lead.email ? (
+                    <a
+                      href={`mailto:${lead.email}`}
+                      className="mt-0.5 block truncate text-[0.8rem] text-abyss-600 hover:underline"
+                    >
+                      {lead.email}
+                    </a>
+                  ) : (
+                    <p className="mt-0.5 text-[0.8rem] text-ink-500">No email on file</p>
+                  )}
                   <div className="mt-2">
                     <StatusBadge status={lead.status} map={LEAD_STATUS} />
                   </div>
@@ -431,6 +464,64 @@ export default async function ProjectDetailPage({ params }: { params: Params }) 
               <Detail label="Created">{formatDate(project.createdAt)}</Detail>
             </dl>
           </Card>
+
+          {agreement && (
+            <Card>
+              <CardHeader
+                title="Service agreement"
+                subtitle="The terms and SOW this project delivers."
+                action={<StatusBadge status={agreement.status} map={AGREEMENT_STATUS} />}
+              />
+              <ul className="-mx-2 space-y-0.5">
+                <li>
+                  <Link
+                    href={`/admin/billing/agreements/${agreement.id}`}
+                    className="flex items-center justify-between gap-3 rounded-xl px-2 py-2.5 transition-colors hover:bg-haze"
+                  >
+                    <span className="flex min-w-0 items-center gap-2.5">
+                      <FileSignature className="h-4 w-4 shrink-0 text-abyss-600" aria-hidden="true" />
+                      <span className="min-w-0">
+                        <span className="block truncate font-mono text-[0.78rem] font-medium text-ink-800">
+                          {agreement.number}
+                        </span>
+                        <span className="block text-[0.72rem] text-ink-500">
+                          {formatMoney(agreement.totalFils, agreement.currency)} incl. VAT
+                          {agreement.signedAt ? ` · signed ${formatDate(agreement.signedAt)}` : ""}
+                        </span>
+                      </span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-ink-300" aria-hidden="true" />
+                  </Link>
+                </li>
+                {agreement.quote && (
+                  <li>
+                    <Link
+                      href={`/admin/billing/quotes/${agreement.quote.id}`}
+                      className="flex items-center justify-between gap-3 rounded-xl px-2 py-2.5 transition-colors hover:bg-haze"
+                    >
+                      <span className="flex min-w-0 items-center gap-2.5">
+                        <FileText className="h-4 w-4 shrink-0 text-ink-400" aria-hidden="true" />
+                        <span className="min-w-0">
+                          <span className="block truncate font-mono text-[0.78rem] font-medium text-ink-800">
+                            {agreement.quote.number}
+                          </span>
+                          <span className="block text-[0.72rem] text-ink-500">Quotation</span>
+                        </span>
+                      </span>
+                      <StatusBadge status={agreement.quote.status} map={QUOTE_STATUS} />
+                    </Link>
+                  </li>
+                )}
+              </ul>
+              <Link
+                href={`/admin/billing/agreements/${agreement.id}#payment-schedule`}
+                className="mt-3 inline-flex items-center gap-1 text-[0.78rem] font-semibold text-abyss-600 hover:underline"
+              >
+                Payment schedule
+                <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </Link>
+            </Card>
+          )}
 
           <Card>
             <CardHeader
@@ -459,7 +550,12 @@ export default async function ProjectDetailPage({ params }: { params: Params }) 
                     >
                       <div className="min-w-0">
                         <p className="truncate font-mono text-[0.78rem] font-medium text-ink-800">{invoice.number}</p>
-                        <p className="text-[0.72rem] text-ink-500">Due {formatDate(invoice.dueDate)}</p>
+                        <p className="text-[0.72rem] text-ink-500">
+                          {invoice.installment && invoice.agreement
+                            ? `${INSTALLMENT_LABEL[invoice.installment]} · ${invoice.agreement.number} · `
+                            : ""}
+                          Due {formatDate(invoice.dueDate)}
+                        </p>
                         {invoice.billedElsewhere && (
                           <p className="mt-0.5 flex items-start gap-1 text-[0.72rem] font-medium text-amber-700">
                             <TriangleAlert className="mt-px h-3 w-3 shrink-0" aria-hidden="true" />
@@ -515,6 +611,7 @@ export default async function ProjectDetailPage({ params }: { params: Params }) 
             Deleting removes this project and its {totalTasks} task{totalTasks === 1 ? "" : "s"} permanently.
             {invoices.length > 0 &&
               ` ${invoices.length} linked invoice${invoices.length === 1 ? " is" : "s are"} kept in billing and unlinked from the project.`}
+            {agreement && ` Service agreement ${agreement.number} is kept and can start a new project.`}
           </p>
           <form action={deleteProject} className="mt-4">
             <input type="hidden" name="projectId" value={project.id} />

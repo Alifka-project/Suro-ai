@@ -23,8 +23,12 @@ export default async function EditQuotePage({ params }: Props) {
   const { id } = await params;
   const quote = await getQuote(id);
   if (!quote) notFound();
-  // Sent documents are a record of what the client received; only drafts change.
-  if (quote.status !== "DRAFT") redirect(`/admin/billing/quotes/${quote.id}`);
+  // Sent documents are a record of what the client received; only drafts
+  // change, and not once their service agreement went out at this price.
+  const agreementStatus = quote.agreement?.status;
+  if (quote.status !== "DRAFT" || agreementStatus === "SENT" || agreementStatus === "SIGNED") {
+    redirect(`/admin/billing/quotes/${quote.id}`);
+  }
 
   const { leads } = await getEditorOptions({ includeProjects: false, ensureLeadIds: [quote.leadId] });
 
