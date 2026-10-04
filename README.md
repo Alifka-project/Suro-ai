@@ -1,7 +1,8 @@
-# SULOAI — landing page
+# SULOAI — website
 
-Automation & applied-AI landing page for a supply-chain consultancy. Next.js 16
-(App Router) · React 19 · Tailwind v4 · Framer Motion · TypeScript.
+The public landing page and the private admin dashboard for SULOAI, a
+Dubai-based business automation and AI consultancy. Next.js 16 (App Router) ·
+React 19 · Tailwind v4 · Framer Motion · TypeScript.
 
 ```bash
 npm install
@@ -12,33 +13,101 @@ Open http://localhost:3000
 
 ---
 
-## Before you launch — placeholders to replace
+## The landing page
 
-These are the only pieces of content that are invented. Everything else is
-structural copy you can keep or edit freely.
+**Positioning:** "Small task or complex system — we turn business challenges
+into smarter solutions." Automation, integration and AI for any business
+function and any size of problem, for individuals, SMEs and enterprises. Supply
+chain and logistics is the team's background and credibility, not the whole
+pitch.
 
-| Where | What | File |
-| --- | --- | --- |
-| Footer contact details | Email, WhatsApp number, location | `src/components/layout/Footer.tsx` → `CONTACT` |
-| Credibility stats | "9 yrs", "120+ processes", "4.5 hrs" | `src/components/sections/IntroVideo.tsx` → `CREDENTIALS` |
-| Case results | All three engagement figures | `src/components/sections/Results.tsx` → `CASES` |
-| Intro video | Drop `intro.mp4` into `public/media/` | see `public/media/README.md` |
-| Domain | `SITE` constant used for SEO metadata | `src/app/layout.tsx` |
+### Sections, in page order
 
-The results cards are deliberately written as *representative* engagement
-patterns with no named clients, so nothing on the page misrepresents a real
-customer. Swap in your own measured numbers, and get written sign-off before
-attributing anything to a named client.
+`src/app/page.tsx` sets the order. Section files are in
+`src/components/sections/` unless noted.
 
-## Intro video
+| # | Section | File | Anchor |
+| --- | --- | --- | --- |
+| 1 | Hero: headline, value pillars, solution console | `Hero.tsx` | `#top` |
+| 2 | Running capability badges | `CapabilityMarquee.tsx` | — |
+| 3 | "Does this sound familiar?" | `Hook.tsx` | `#familiar` |
+| 4 | Pain points | `PainPoints.tsx` | `#pain-points` |
+| 5 | Technology-agnostic approach | `Approach.tsx` | `#approach` |
+| 6 | Business functions | `BusinessFunctions.tsx` | `#functions` |
+| 7 | Services: packages 0–9 | `Services.tsx` | `#services`, each package `#service-<id>` |
+| 8 | How it works | `Process.tsx` | `#process` |
+| 9 | About / profile | `About.tsx` | `#about` |
+| 10 | FAQ | `Faq.tsx` | `#faq` |
+| — | Footer with the contact form | `src/components/layout/Footer.tsx`, `ContactForm.tsx` | `#contact` |
 
-Drop an MP4 at `public/media/intro.mp4` (optional still at
-`public/media/intro-poster.jpg`). The player probes for the file on mount and
-switches from the branded placeholder to the real player automatically — no
-code change. For anything above ~15 MB, host it externally and change
-`VIDEO_SRC` in `src/components/sections/IntroVideo.tsx`.
+### Where the content lives
+
+Anything shown in more than one place has a single source, so the page, the
+contact form, the CRM and the search-engine data can't drift apart:
+
+| File | What it holds |
+| --- | --- |
+| `src/lib/site.ts` | Site URL, brand name, tagline and descriptor, the three value pillars, contact details (email, WhatsApp, city), the booking link, the profile line and the only published figures, section anchors |
+| `src/lib/packages.ts` | The ten service packages (0–9): promise, what each covers, example flows, who it is best for. `formLabel` ("Package 1: Automate") is what the contact form stores on a lead and what a service agreement prints as its package reference |
+| `src/lib/faq-content.ts` | FAQ questions and answers. Plain text, because the same strings are published as structured data |
+| `src/lib/contact-intent.ts` | How "Talk to us" and "Book a call" buttons pre-fill the contact form |
+
+Copy used by only one section lives in that section's file.
+
+The only figures on the page are the client's own (`PROFILE` in `site.ts`:
+100+ projects, three client sizes, eight business functions). Don't add
+numbers, client names or testimonials without the client's written sign-off.
+
+### Before launch
+
+| What | Where |
+| --- | --- |
+| **WhatsApp number.** `CONTACT.whatsapp` is `null`, so every WhatsApp link is hidden rather than showing a made-up number. Set it in international format (`"+971 50 123 4567"`) and the links appear, and the number is added to the structured data. | `src/lib/site.ts` |
+| **Booking page.** Without `NEXT_PUBLIC_BOOKING_URL`, "Book a call" opens the contact form with "Video call" preselected. | Vercel env |
+| **Domain.** Set `NEXT_PUBLIC_SITE_URL` once a custom domain points at this Vercel project. | Vercel env |
+| **Intro video (optional).** Drop an MP4 at `public/media/intro.mp4` (and a still at `public/media/intro-poster.jpg` if you have one). The About section checks for the file and switches from its brand panel to the player, with no code change. For anything above ~15 MB, host it externally and change `VIDEO_SRC` in `About.tsx`. | `public/media/` |
+
+### Environment variables for the landing page
+
+| Variable | Purpose |
+| --- | --- |
+| `NEXT_PUBLIC_SITE_URL` | The public URL used for canonical links, the sitemap, OpenGraph tags and structured data, e.g. `https://suloai.com`. Set it when a custom domain points at Vercel. If unset, Vercel's production domain is used (`VERCEL_PROJECT_PRODUCTION_URL`, provided automatically), then `http://localhost:3000`. Don't point it at suloai.com while that domain still serves the old Squarespace site: search engines would treat this page as a copy of it. |
+| `NEXT_PUBLIC_BOOKING_URL` | A Calendly or Google Calendar appointment page. When set, every "Book a call" button opens it. |
+
+`NEXT_PUBLIC_` values are fixed at build time, so redeploy after changing
+them.
+
+### SEO
+
+| File | Produces |
+| --- | --- |
+| `src/app/layout.tsx` | Title, description, keywords, canonical link, OpenGraph and X (Twitter) tags, robots meta |
+| `src/components/seo/StructuredData.tsx` | The shared title and descriptions (`SEO_TITLE`, `SEO_DESCRIPTION`, `SHARE_DESCRIPTION`) and the JSON-LD: Organization, WebSite, the page with its FAQ, and an OfferCatalog of the ten packages. Built from `site.ts`, `packages.ts` and `faq-content.ts`. No ratings, reviews or prices, because none have been published |
+| `src/app/opengraph-image.tsx`, `src/app/twitter-image.tsx` | The 1200×630 link-preview image, generated at build time |
+| `src/app/robots.ts` | `/robots.txt`: crawlers may visit everything except `/admin` and `/api`, and are pointed at the sitemap |
+| `src/app/sitemap.ts` | `/sitemap.xml`: the home page |
+| `src/app/manifest.ts` | `/manifest.webmanifest` |
+| `src/app/icon.png`, `src/app/apple-icon.png` | Favicon and iOS touch icon |
+
+Conventions to keep when editing sections: one `h1` on the page (the hero),
+one `h2` per section, `h3` for items inside it. Content inside tabs and
+accordions stays in the HTML (hidden with CSS, not unmounted) so search
+engines can read it. Images need `alt` text, and link text should say where it
+goes.
+
+The preview image is set in Saira, the open-source face the SULOAI font is
+based on, fetched from Google Fonts at build time (it falls back to a plain
+sans if the fetch fails). The renderer can't read the `.woff2` files in
+`src/app/fonts/`; add `SULOAI-Bold.ttf` and `SULOAI-Medium.ttf` from the
+designer's font package to that folder and the image uses them instead.
+
+After each deploy that changes content, check the live URL with Google's
+[Rich Results Test](https://search.google.com/test/rich-results) and the
+[Schema Markup Validator](https://validator.schema.org/), and submit
+`/sitemap.xml` in Google Search Console once the domain is final.
 
 ## Contact form email
+
 
 Every submission is saved as a lead in the admin CRM (see
 [Admin dashboard](#admin-dashboard)). Email is an extra notification on top: without
@@ -61,8 +130,8 @@ if you scale to multiple.
 ## The hero solution engine
 
 `src/lib/solution-engine.ts` turns a free-text description of a bottleneck into
-a scoped solution outline. It is deterministic keyword scoring across 12
-supply-chain playbooks — no API key, no per-visitor cost, instant response. It
+a scoped solution outline. It is deterministic keyword scoring across a set
+of playbooks — no API key, no per-visitor cost, instant response. It
 also detects named systems (SAP, Excel, EDI…) and volume phrases so the reply
 quotes the visitor's own context back to them.
 
@@ -109,8 +178,8 @@ print or design team.
 | File | Use |
 | --- | --- |
 | `public/brand/suloai-mark.png` | The S mark, used in the header and footer lockups |
-| `public/brand/suloai-lockup.png` | Full vertical lockup — OpenGraph / social sharing |
-| `public/brand/suloai-mark-square.png` | 512px padded square, for app icons or app stores |
+| `public/brand/suloai-lockup.png` | Full vertical lockup, for documents and print. Not used on the site: the link-preview image is generated by `src/app/opengraph-image.tsx` |
+| `public/brand/suloai-mark-square.png` | 512px padded square: the logo in the structured data and the large web-manifest icon |
 | `src/app/icon.png`, `src/app/apple-icon.png` | Favicon and iOS touch icon |
 
 The header pairs the **mark only** with `SULOAI` as live text rather than
@@ -143,8 +212,9 @@ Reusable pieces: `AuroraField` (the animated background), `SpotlightCard`
 
 ## Accessibility & motion
 
-Every decorative animation is disabled under `prefers-reduced-motion`, and the
-typewriter and count-up both render their final value immediately in that mode.
+Every decorative animation is disabled under `prefers-reduced-motion`, and
+anything that types or counts up renders its final value immediately in that
+mode.
 Content is never gated on an animation completing — the hero's blueprint and CTA
 reveal on a timer, not on the typing finishing, so a backgrounded tab can't
 strand a visitor on a half-written answer.
@@ -280,8 +350,11 @@ timeline and the three-stage payment schedule (50% deposit / 25% milestone /
 | --- | --- |
 | `DATABASE_URL` | Postgres connection string (Neon, Vercel Postgres, …) |
 | `SESSION_SECRET` | Signs session cookies. **At least 32 characters**; the app refuses to start without it. Generate one with `openssl rand -base64 32`. |
-| `APP_URL` | Your public site URL, e.g. `https://suloai.com` — used for the dashboard link in lead emails |
+| `APP_URL` | The URL this app is deployed at (where `/admin` lives), e.g. your Vercel or custom domain — used for the dashboard link in lead emails |
 | `RESEND_API_KEY`, `CONTACT_TO_EMAIL`, `CONTACT_FROM_EMAIL` | Lead notification email (see above) |
+
+The landing page's own variables (`NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_BOOKING_URL`)
+are described [above](#environment-variables-for-the-landing-page).
 
 There is no password variable: sign-in uses the admin accounts in the database
 (see [Admin accounts](#admin-accounts)). An old `ADMIN_PASSWORD` can be removed

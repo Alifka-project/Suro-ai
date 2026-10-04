@@ -116,7 +116,7 @@ const LEADS: DemoLead[] = [
   {
     key: "palmgate", name: "Rashid Al Suwaidi", company: "Palmgate Distribution", size: "201–1000 employees",
     industry: "Wholesale & distribution", city: "Dubai", country: "United Arab Emirates",
-    services: ["Dashboards & reporting", "Power Automate / Power Platform"], budget: "$15,000 – $50,000",
+    services: ["Package 3: Data Flow & Reporting", "Package 1: Automate"], budget: "$15,000 – $50,000",
     msg: "Warehouse KPIs are compiled by hand from WMS exports every Monday. We want live dashboards and alerts when picking falls behind.",
     web: true, status: "WON", days: 150, value: 120000, title: "Warehouse KPI dashboards", priority: 2,
     tags: ["Power BI", "Retainer"], close: -128, wonDaysAgo: 128,
@@ -130,7 +130,7 @@ const LEADS: DemoLead[] = [
   {
     key: "gulfline", name: "Omar Haddad", company: "Gulfline Logistics", size: "201–1000 employees",
     industry: "Logistics & 3PL", city: "Dubai", country: "United Arab Emirates",
-    services: ["Power Automate / Power Platform", "Document intelligence"], budget: "$50,000 – $150,000",
+    services: ["Package 1: Automate", "Package 4: AI Agents & Intelligent Solutions"], budget: "$50,000 – $150,000",
     msg: "We re-key roughly 400 bills of lading a week into our TMS. Two people spend most of their day on it.",
     web: true, status: "WON", days: 34, value: 180000, title: "B/L intake automation", priority: 3,
     tags: ["Document AI", "TMS"], close: -6, wonDaysAgo: 6,
@@ -147,7 +147,7 @@ const LEADS: DemoLead[] = [
   {
     key: "crescent", name: "Priya Raman", company: "Crescent Pharma Distribution", size: "51–200 employees",
     industry: "Pharmaceutical & healthcare", city: "Abu Dhabi", country: "United Arab Emirates",
-    services: ["Forecasting & analytics", "Dashboards & reporting"], budget: "$15,000 – $50,000",
+    services: ["Package 3: Data Flow & Reporting"], budget: "$15,000 – $50,000",
     msg: "Stockouts on fast movers and expiry write-offs on the slow ones. Planning lives in twelve linked workbooks.",
     web: true, status: "PROPOSAL", days: 21, value: 95000, title: "Demand forecasting & planning dashboards", priority: 2,
     tags: ["Forecasting", "Power BI"], probability: 70, close: 14,
@@ -161,7 +161,7 @@ const LEADS: DemoLead[] = [
   {
     key: "northwind", name: "Daniel Okafor", company: "Northwind Freight", size: "11–50 employees",
     industry: "Freight forwarding", city: "Sharjah", country: "United Arab Emirates",
-    services: ["AI chatbot / support agent"], budget: "$15,000 – $50,000",
+    services: ["Package 4: AI Agents & Intelligent Solutions"], budget: "$15,000 – $50,000",
     msg: "Customers email all day asking where their shipment is. We want WhatsApp answers from our tracking data.",
     web: true, status: "QUALIFIED", days: 14, value: 60000, title: "WhatsApp shipment status agent", priority: 2,
     tags: ["Chatbot", "WhatsApp"], close: 30,
@@ -175,7 +175,7 @@ const LEADS: DemoLead[] = [
   {
     key: "alnoor", name: "Sara Al Mansoori", company: "Al Noor Retail Group", size: "1000+ employees",
     industry: "Retail & e-commerce", city: "Dubai", country: "United Arab Emirates",
-    services: ["System integration & EDI", "Power Automate / Power Platform"], budget: "$150,000+",
+    services: ["Package 2: Connect", "Package 1: Automate"], budget: "$150,000+",
     msg: "Our ERP, WMS and Shopify do not talk. Orders are copied between them by hand every morning.",
     web: true, status: "CONTACTED", days: 6, value: 420000, title: "ERP, WMS & Shopify order sync", priority: 3,
     tags: ["Integration", "EDI", "Enterprise"], probability: 25, close: 60,
@@ -198,7 +198,7 @@ const LEADS: DemoLead[] = [
   {
     key: "meridian", name: "Aisha Rahman", company: "Meridian Electronics", size: "11–50 employees",
     industry: "Electronics", city: "Dubai", country: "United Arab Emirates",
-    services: ["Embedded AI copilot"], budget: "Need guidance on budget",
+    services: ["Package 4: AI Agents & Intelligent Solutions"], budget: "Need guidance on budget",
     msg: "Exploring an AI assistant inside our ERP for quote drafting.",
     web: true, status: "NEW", days: 3, value: null, title: "ERP quoting copilot", priority: 1,
     tags: ["Copilot"],
@@ -206,7 +206,7 @@ const LEADS: DemoLead[] = [
   },
   {
     key: "liam", name: "Liam Chen", company: null, size: null, industry: null, city: "Singapore", country: "Singapore",
-    services: ["Excel & VBA engineering"], budget: "Under $5,000",
+    services: ["Package 1: Automate"], budget: "Under $5,000",
     msg: "I run procurement for a small distributor and my costing workbook crashes every month-end.",
     web: true, status: "NEW", days: 1, value: null, title: "Costing workbook rebuild", priority: 0,
     tags: ["Excel"],
@@ -215,7 +215,7 @@ const LEADS: DemoLead[] = [
   {
     key: "atlas", name: "Fatima Zahra", company: "Atlas Food Supply", size: "51–200 employees",
     industry: "Food & beverage", city: "Riyadh", country: "Saudi Arabia",
-    services: ["Document intelligence", "Dashboards & reporting"], budget: "$5,000 – $15,000",
+    services: ["Package 4: AI Agents & Intelligent Solutions", "Package 3: Data Flow & Reporting"], budget: "$5,000 – $15,000",
     msg: "Supplier invoices arrive as scanned PDFs and we match them against POs manually.",
     web: true, status: "NEW", days: 0, value: null, title: "Supplier invoice matching", priority: 1,
     tags: ["Document AI"],
@@ -223,7 +223,7 @@ const LEADS: DemoLead[] = [
   {
     key: "vela", name: "Marco Bellini", company: "Vela Industrial", size: "201–1000 employees",
     industry: "Construction & industrial", city: "Doha", country: "Qatar",
-    services: ["Process & workflow automation"], budget: "$15,000 – $50,000",
+    services: ["Package 1: Automate"], budget: "$15,000 – $50,000",
     msg: "Portal data collection from twelve supplier sites.",
     web: true, status: "LOST", days: 44, value: 70000, title: "Supplier portal data collection", priority: 1,
     tags: ["RPA"], close: -20,
@@ -519,7 +519,7 @@ async function main() {
       projectName: gulflineProject.name,
       background: "Gulfline re-keys roughly 400 bills of lading a week into its TMS; two coordinators spend most of their day on it, and exceptions are chased by email.",
       scope: gulflineLines.map((l) => l.description),
-      packageRef: "Power Automate / Power Platform + Document intelligence",
+      packageRef: "Package 1: Automate + Package 4: AI Agents & Intelligent Solutions",
       deliverables: [
         "Document AI extraction of bills of lading into the TMS",
         "Exception queue for low-confidence fields, with one-click correction",

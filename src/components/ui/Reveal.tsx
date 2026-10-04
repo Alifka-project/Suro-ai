@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, type Variants } from "framer-motion";
+import { MotionConfig, motion, type Variants } from "framer-motion";
 import type { ReactNode } from "react";
 import { fadeUp, inView, stagger } from "@/lib/motion";
 
@@ -22,6 +22,25 @@ const MOTION = {
 
 type Tag = keyof typeof MOTION;
 
+/**
+ * Every entrance carries `data-reveal`. framer writes the hidden state
+ * (opacity:0, translateY) into the server HTML as an inline style, so
+ * globals.css uses this attribute to show the finished state when scripting
+ * is off.
+ */
+const REVEAL_ATTR = { "data-reveal": "" } as const;
+
+/**
+ * A variant's own `transition` replaces the component-level `transition` prop
+ * (framer only merges the two when the variant sets `inherit: true`), so a
+ * delay has to be written into the "show" variant itself to take effect.
+ */
+function withDelay(variants: Variants, delay: number): Variants {
+  const show = variants.show;
+  if (!delay || !show || typeof show === "function") return variants;
+  return { ...variants, show: { ...show, transition: { ...show.transition, delay } } };
+}
+
 type RevealProps = {
   children: ReactNode;
   className?: string;
@@ -33,8 +52,12 @@ type RevealProps = {
 
 /**
  * Scroll-triggered entrance. Fires once so the page never feels twitchy when
- * the user scrolls back up. Decorative motion is neutralised globally by the
- * prefers-reduced-motion block in globals.css.
+ * the user scrolls back up.
+ *
+ * framer drives transforms through inline styles that the reduced-motion block
+ * in globals.css can't reach, and its default is to ignore the OS setting.
+ * reducedMotion="user" makes the slide jump straight to its end position for
+ * those visitors and keeps only the opacity fade.
  */
 export function Reveal({
   children,
@@ -46,16 +69,18 @@ export function Reveal({
   const MotionTag = MOTION[as];
 
   return (
-    <MotionTag
-      className={className}
-      variants={variants}
-      initial="hidden"
-      whileInView="show"
-      viewport={inView}
-      transition={{ delay }}
-    >
-      {children}
-    </MotionTag>
+    <MotionConfig reducedMotion="user">
+      <MotionTag
+        {...REVEAL_ATTR}
+        className={className}
+        variants={withDelay(variants, delay)}
+        initial="hidden"
+        whileInView="show"
+        viewport={inView}
+      >
+        {children}
+      </MotionTag>
+    </MotionConfig>
   );
 }
 
@@ -76,18 +101,26 @@ export function RevealGroup({
   const MotionTag = MOTION[as];
 
   return (
-    <MotionTag
-      className={className}
-      variants={stagger(gap, delay)}
-      initial="hidden"
-      whileInView="show"
-      viewport={inView}
-    >
-      {children}
-    </MotionTag>
+    <MotionConfig reducedMotion="user">
+      <MotionTag
+        {...REVEAL_ATTR}
+        className={className}
+        variants={stagger(gap, delay)}
+        initial="hidden"
+        whileInView="show"
+        viewport={inView}
+      >
+        {children}
+      </MotionTag>
+    </MotionConfig>
   );
 }
 
+/**
+ * Child of <RevealGroup> (or any motion parent with hidden/show variants);
+ * animates when the parent comes into view. Its own MotionConfig covers a
+ * parent that doesn't set reducedMotion.
+ */
 export function RevealItem({
   children,
   className,
@@ -102,8 +135,10 @@ export function RevealItem({
   const MotionTag = MOTION[as];
 
   return (
-    <MotionTag className={className} variants={variants}>
-      {children}
-    </MotionTag>
+    <MotionConfig reducedMotion="user">
+      <MotionTag {...REVEAL_ATTR} className={className} variants={variants}>
+        {children}
+      </MotionTag>
+    </MotionConfig>
   );
 }

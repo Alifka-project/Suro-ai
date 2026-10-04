@@ -454,7 +454,8 @@
   }
 
   .field::placeholder {
-    color: var(--color-ink-400);
+    /* ink-550: AA contrast on white; ink-400 was 2.8:1. */
+    color: var(--color-ink-550);
   }
 
   .field:hover {
@@ -507,6 +508,23 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/*
+ * No-JS fallback for scroll entrances. framer server-renders the hidden state
+ * as an inline style (opacity:0;transform:…), which only its JS ever clears.
+ * With scripting off, show everything in its finished state. data-reveal
+ * marks the shared Reveal components; the style match covers any other motion
+ * element that starts hidden (it does not match partial values such as
+ * opacity:0.35). An !important stylesheet rule beats a normal inline style.
+ */
+@media (scripting: none) {
+  [data-reveal],
+  [style*="opacity:0;"],
+  [style$="opacity:0"] {
+    opacity: 1 !important;
+    transform: none !important;
   }
 }
 

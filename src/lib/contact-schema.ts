@@ -1,23 +1,16 @@
 import { z } from "zod";
+import { SERVICE_OPTIONS } from "./packages";
 
 /**
  * Shared by the client form and the API route, so validation can never drift
  * between the two. Every option list here is exported for the UI to render, so
- * adding a service or budget band is a one-line change.
+ * adding a budget band is a one-line change.
+ *
+ * The service options are the packages' form labels ("Package 1: Automate")
+ * plus "Not sure yet", defined once in packages.ts. They're what a lead stores
+ * in the CRM and what the service agreement prints as its package reference.
  */
-
-export const SERVICE_OPTIONS = [
-  "Power Automate / Power Platform",
-  "Excel & VBA engineering",
-  "Process & workflow automation",
-  "System integration & EDI",
-  "AI chatbot / support agent",
-  "Embedded AI copilot",
-  "Document intelligence",
-  "Forecasting & analytics",
-  "Dashboards & reporting",
-  "Not sure yet — need advice",
-] as const;
+export { SERVICE_OPTIONS, NOT_SURE_OPTION } from "./packages";
 
 export const COMPANY_SIZES = [
   "1–10 employees",
@@ -39,6 +32,13 @@ export const INDUSTRIES = [
   "Electronics",
   "Construction & industrial",
   "Agriculture",
+  "Energy & utilities",
+  "Financial services",
+  "Professional services",
+  "Real estate & property",
+  "Hospitality & tourism",
+  "Education",
+  "Public sector",
   "Other",
 ] as const;
 
@@ -94,9 +94,11 @@ export const contactSchema = z
 
     role: z.string().trim().max(120).optional().or(z.literal("")),
 
-    companySize: z.enum(COMPANY_SIZES).optional(),
+    companySize: z
+      .enum(COMPANY_SIZES, { message: "Company size affects the price — please pick one" })
+      .optional(),
 
-    industry: z.enum(INDUSTRIES).optional(),
+    industry: z.enum(INDUSTRIES, { message: "Please choose the closest industry" }).optional(),
 
     services: z
       .array(z.enum(SERVICE_OPTIONS))

@@ -7,7 +7,7 @@
  */
 export const BUSINESS = {
   name: "SULOAI",
-  tagline: "Automation & AI for Supply Chain",
+  tagline: "Business Automation & AI",
   addressLines: ["Dubai", "United Arab Emirates"],
   email: "suloai.automation@gmail.com",
   website: "suloai.com",

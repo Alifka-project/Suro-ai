@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { JetBrains_Mono } from "next/font/google";
+import { BRAND, SITE_URL } from "@/lib/site";
+import { SEO_DESCRIPTION, SEO_TITLE, SHARE_DESCRIPTION } from "@/components/seo/StructuredData";
 import "./globals.css";
 
 /**
@@ -29,46 +31,67 @@ const jetbrains = JetBrains_Mono({
   display: "swap",
 });
 
-const SITE = "https://suloai.com";
-
+/**
+ * Site-wide metadata. URLs are relative and resolve against SITE_URL
+ * (src/lib/site.ts), which follows NEXT_PUBLIC_SITE_URL or the Vercel
+ * production domain. The share image comes from app/opengraph-image.tsx and
+ * app/twitter-image.tsx; the favicon and touch icon from app/icon.png and
+ * app/apple-icon.png.
+ */
 export const metadata: Metadata = {
-  metadataBase: new URL(SITE),
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: "SULOAI — Automation & AI for Supply Chain",
-    template: "%s · SULOAI",
+    default: SEO_TITLE,
+    template: `%s · ${BRAND.name}`,
   },
-  description:
-    "We build Power Automate flows, Excel VBA tooling, and applied AI — chatbots, embedded copilots, document intelligence — for supply chain and logistics teams. Describe your bottleneck and get a solution outline in seconds.",
-  applicationName: "SULOAI",
+  description: SEO_DESCRIPTION,
+  applicationName: BRAND.name,
   keywords: [
-    "supply chain automation",
-    "Power Automate consulting",
-    "Excel VBA automation",
-    "AI chatbot for logistics",
-    "SCM AI solutions",
-    "procurement automation",
-    "warehouse automation",
-    "document intelligence",
+    "business process automation Dubai",
+    "business automation UAE",
+    "workflow automation",
+    "Excel automation",
+    "VBA automation",
+    "Power Automate consultant",
+    "data integration",
+    "systems integration",
+    "automated reporting and dashboards",
+    "AI agents for business",
+    "AI assistants",
+    "custom web applications",
+    "project rescue",
+    "automation audit",
   ],
+  authors: [{ name: BRAND.name, url: SITE_URL }],
+  creator: BRAND.name,
+  publisher: BRAND.name,
+  category: "technology",
+  alternates: { canonical: "/" },
   openGraph: {
     type: "website",
-    url: SITE,
-    siteName: "SULOAI",
-    title: "SULOAI — Automation & AI for Supply Chain",
-    description:
-      "Power Automate, Excel VBA, and applied AI built for supply chain teams. Describe your bottleneck, get a solution outline in seconds.",
-    images: [
-      { url: "/brand/suloai-lockup.png", width: 916, height: 838, alt: "SULOAI" },
-    ],
+    url: "/",
+    siteName: BRAND.name,
+    locale: "en_AE",
+    title: SEO_TITLE,
+    description: SHARE_DESCRIPTION,
   },
   twitter: {
     card: "summary_large_image",
-    title: "SULOAI — Automation & AI for Supply Chain",
-    description:
-      "Power Automate, Excel VBA, and applied AI built for supply chain teams.",
-    images: ["/brand/suloai-lockup.png"],
+    title: SEO_TITLE,
+    description: SHARE_DESCRIPTION,
   },
-  robots: { index: true, follow: true },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
+  formatDetection: { telephone: false },
 };
 
 export const viewport: Viewport = {

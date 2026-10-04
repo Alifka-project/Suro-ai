@@ -94,7 +94,7 @@ function buildEmail(
           ${isCompany ? row("Role", data.role) : ""}
           ${isCompany ? row("Size", data.companySize) : ""}
           ${isCompany ? row("Industry", data.industry) : ""}
-          ${row("Services", data.services)}
+          ${row("Services", data.services.join("\n"))}
           ${row("Systems", data.systems)}
           ${row("Timeline", data.timeline)}
           ${row("Budget", data.budget)}

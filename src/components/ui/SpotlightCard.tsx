@@ -1,5 +1,6 @@
 "use client";
 
+import { GLOW } from "@/lib/glow";
 import {
   useRef,
   useState,
@@ -10,14 +11,7 @@ import {
 } from "react";
 
 /** Space-separated RGB triplets — required by the `rgb(var(--glow) / a)` syntax. */
-export const GLOW = {
-  abyss: "7 102 163",
-  azure: "56 134 213",
-  aqua: "65 176 204",
-  mint: "142 209 196",
-  lilac: "181 171 230",
-  blush: "253 156 194",
-} as const;
+export { GLOW } from "@/lib/glow";
 
 /**
  * Glass card with a pointer-following spotlight and an aurora gradient hairline
