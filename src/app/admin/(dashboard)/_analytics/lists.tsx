@@ -489,7 +489,7 @@ export function AgreementsPanel({
                   <span
                     className={cn(
                       "font-display text-[1.3rem] font-bold leading-none tabular-nums",
-                      c.count === 0 ? "text-ink-400" : "text-ink-900",
+                      c.count === 0 ? "text-ink-550" : "text-ink-900",
                     )}
                   >
                     {c.count}

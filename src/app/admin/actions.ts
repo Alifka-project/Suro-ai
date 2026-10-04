@@ -12,6 +12,7 @@ export type LoginState = { error?: string; username?: string } | undefined;
  * In-memory limits — a speed bump per instance, not a hard wall.
  *
  * - Per IP: after 5 failures in 15 minutes, that IP is refused outright.
+ *   Signing in only clears the IP's failures for the ID that signed in.
  * - Per sign-in ID: after 10 failures in 15 minutes (guessing spread across
  *   many IPs), the ID only takes attempts from IPs with no recent failures.
  *   Each guessing IP is then down to one try per window, while the real
@@ -24,30 +25,35 @@ export type LoginState = { error?: string; username?: string } | undefined;
 const WINDOW_MS = 15 * 60 * 1000;
 const MAX_PER_IP = 5;
 const MAX_PER_USERNAME = 10;
-/** Timestamps kept per key: enough to tell whether either limit is reached. */
+/** Failures kept per key: enough to tell whether either limit is reached. */
 const KEEP_PER_KEY = Math.max(MAX_PER_IP, MAX_PER_USERNAME);
 /** Past this many keys, expired ones are swept on the next failure. */
 const SWEEP_AT = 5000;
 /** Hard ceiling on memory: past it, the oldest keys are dropped as well. */
 const MAX_KEYS = 20_000;
-const failures = new Map<string, number[]>();
+/**
+ * One failed attempt: when (t) and which normalized sign-in ID it was for (u).
+ * Under an IP key, u tells failures against different IDs apart.
+ */
+type Failure = { t: number; u: string };
+const failures = new Map<string, Failure[]>();
 
-function recent(key: string): number[] {
+function recent(key: string): Failure[] {
   const now = Date.now();
-  const list = (failures.get(key) ?? []).filter((t) => now - t < WINDOW_MS);
+  const list = (failures.get(key) ?? []).filter((f) => now - f.t < WINDOW_MS);
   if (list.length) failures.set(key, list);
   else failures.delete(key);
   return list;
 }
 
-function recordFailure(key: string) {
+function recordFailure(key: string, username: string) {
   const now = Date.now();
-  failures.set(key, [...recent(key), now].slice(-KEEP_PER_KEY));
+  failures.set(key, [...recent(key), { t: now, u: username }].slice(-KEEP_PER_KEY));
   // Keys are otherwise only pruned when looked up again, so IPs and IDs that
   // never come back would pile up.
   if (failures.size <= SWEEP_AT) return;
-  for (const [k, times] of failures) {
-    if (times.every((t) => now - t >= WINDOW_MS)) failures.delete(k);
+  for (const [k, list] of failures) {
+    if (list.every((f) => now - f.t >= WINDOW_MS)) failures.delete(k);
   }
   // Still over the ceiling means a flood of fresh (likely spoofed) IPs or IDs
   // within one window. Forget the oldest entries (a Map iterates in insertion
@@ -91,8 +97,8 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   }
 
   const fail = async (): Promise<LoginState> => {
-    recordFailure(ipKey);
-    if (username) recordFailure(userKey);
+    recordFailure(ipKey, username);
+    if (username) recordFailure(userKey, username);
     // Deliberately vague — never says whether the ID exists — and a small
     // fixed delay blunts rapid guessing.
     await new Promise((r) => setTimeout(r, 400));
@@ -112,10 +118,15 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   const ok = await verifyPassword(password, admin?.passwordHash ?? (await dummyPasswordHash()));
   if (!admin || !admin.active || !ok) return fail();
 
-  // The IP's slate is clean again. The ID's failures stay until they expire:
-  // they only restrict IPs that failed themselves, and clearing them would
-  // hand anyone still guessing at this ID a fresh budget.
-  failures.delete(ipKey);
+  // The IP's failures for this ID are forgiven, but only those: wiping the
+  // whole slate would let someone reset the IP's budget forever by signing in
+  // as themselves between guesses at another admin's password. The ID's own
+  // failures stay until they expire: they only restrict IPs that failed
+  // themselves, and clearing them would hand anyone still guessing at this ID
+  // a fresh budget.
+  const otherIds = recent(ipKey).filter((f) => f.u !== username);
+  if (otherIds.length) failures.set(ipKey, otherIds);
+  else failures.delete(ipKey);
   await db.adminUser.update({ where: { id: admin.id }, data: { lastLoginAt: new Date() } });
   await createSession(admin);
   redirect(safeNext(formData.get("next")));

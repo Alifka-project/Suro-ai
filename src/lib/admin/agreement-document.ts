@@ -232,7 +232,11 @@ export function buildAgreementDocument(a: AgreementDocInput): AgreementDocument 
         blocks: [
           para(
             t(
-              `Service Provider will perform services with reasonable skill and care. Service Provider does not guarantee that automation will be free of all errors indefinitely, particularly where errors result from changes made by the Client or third-party systems outside Service Provider’s control. Any post-delivery bug fixes related to Service Provider’s own error are covered for ${days(a.warrantyDays)} after delivery at no extra charge (“warranty period”); issues after that are billed under a separate support arrangement.`,
+              `Service Provider will perform services with reasonable skill and care. Service Provider does not guarantee that automation will be free of all errors indefinitely, particularly where errors result from changes made by the Client or third-party systems outside Service Provider’s control. ${
+                a.warrantyDays > 0
+                  ? `Any post-delivery bug fixes related to Service Provider’s own error are covered for ${days(a.warrantyDays)} after delivery at no extra charge (“warranty period”); issues after that are billed under a separate support arrangement.`
+                  : "Post-delivery bug fixes are not included and are billed under a separate support arrangement."
+              }`,
             ),
           ),
         ],
@@ -254,7 +258,7 @@ export function buildAgreementDocument(a: AgreementDocInput): AgreementDocument 
         blocks: [
           para(
             t(
-              `Either party may terminate this Agreement with ${days(a.terminationNoticeDays)}’ written notice. If the Client terminates before completion, the Client must pay for all work completed up to the termination date. If the Service Provider terminates, any deposit for undelivered work will be refunded on a pro-rata basis.`,
+              `Either party may terminate this Agreement with ${a.terminationNoticeDays === 1 ? "1 day’s" : `${a.terminationNoticeDays} days’`} written notice. If the Client terminates before completion, the Client must pay for all work completed up to the termination date. If the Service Provider terminates, any deposit for undelivered work will be refunded on a pro-rata basis.`,
             ),
           ),
         ],

@@ -99,6 +99,7 @@ export function BusinessFunctionTabs({
     <div className="mt-9 grid gap-4 sm:mt-11 lg:grid-cols-[19rem_minmax(0,1fr)] lg:gap-6">
       <div
         role="tablist"
+        data-fn-tablist=""
         aria-label={label}
         aria-orientation={wide ? "vertical" : "horizontal"}
         className="grid min-w-0 grid-cols-2 gap-1.5 self-start rounded-3xl glass p-1.5 md:grid-cols-4 lg:grid-cols-1 lg:gap-1 lg:p-2"
@@ -157,6 +158,7 @@ export function BusinessFunctionTabs({
             aria-labelledby={tabId(item.id)}
             tabIndex={0}
             hidden={i !== active}
+            data-fn-panel=""
             className="h-full rounded-3xl"
           >
             {item.panel}

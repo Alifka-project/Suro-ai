@@ -54,12 +54,13 @@ export function SpotlightCard({
       className={`group relative isolate overflow-hidden rounded-3xl glass transition-[transform,box-shadow] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-1.5 ${className}`}
       style={{ "--glow": glow } as CSSProperties}
     >
-      {/* Pointer spotlight */}
+      {/* Pointer spotlight. Opacity is a class, not an inline style, so the
+          no-JS reveal rule in globals.css (which matches inline opacity:0)
+          doesn't switch this hover-only glow on for every card. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 -z-10 transition-opacity duration-500"
+        className={`pointer-events-none absolute inset-0 -z-10 transition-opacity duration-500 ${active ? "opacity-100" : "opacity-0"}`}
         style={{
-          opacity: active ? 1 : 0,
           background:
             "radial-gradient(340px circle at var(--mx, 50%) var(--my, 50%), rgb(var(--glow) / 0.18), transparent 70%)",
         }}

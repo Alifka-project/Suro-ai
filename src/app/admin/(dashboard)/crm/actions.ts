@@ -5,7 +5,15 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireAdmin, type AdminSession } from "@/lib/admin/dal";
-import { LeadLostError, LeadNotFoundError, lockLead, markLeadWon, sortOrderAtTop } from "@/lib/admin/deals";
+import {
+  AGREEMENT_TOO_LARGE_MESSAGE,
+  AgreementAmountTooLargeError,
+  LeadLostError,
+  LeadNotFoundError,
+  lockLead,
+  markLeadWon,
+  sortOrderAtTop,
+} from "@/lib/admin/deals";
 import { LEAD_STATUS } from "@/lib/admin/labels";
 import { formatMoney, parseMoneyToFils } from "@/lib/admin/money";
 import {
@@ -52,6 +60,12 @@ export type CrmActionState = {
   links?: { label: string; href: string }[];
   /** The record created or changed, when the caller needs it (e.g. to navigate). */
   leadId?: string;
+  /**
+   * The record's current version (its updatedAt), sent back when a save was
+   * refused because the record changed after the form loaded. The form saves
+   * against it next time, so saving again is a deliberate overwrite.
+   */
+  version?: string;
   at: number;
 } | null;
 
@@ -71,7 +85,10 @@ const recordId = z
   .max(64)
   .regex(/^[A-Za-z0-9_-]+$/);
 
-function failure(message: string, extra: { value?: string; fieldErrors?: Record<string, string> } = {}): CrmActionState {
+function failure(
+  message: string,
+  extra: { value?: string; fieldErrors?: Record<string, string>; version?: string } = {},
+): CrmActionState {
   return { ok: false, message, ...extra, at: Date.now() };
 }
 
@@ -123,6 +140,23 @@ const LEAD_GONE = "This lead no longer exists. It may have been deleted in anoth
 const LEAD_LOST_MOVE = "This opportunity is marked lost. Restore it before moving it.";
 
 /**
+ * A move asked for from a screen that no longer shows the opportunity's real
+ * stage: won from Billing, or moved in another tab, since it was loaded.
+ */
+function staleStageMessage(status: LeadStatus): string {
+  return `This opportunity is now in ${LEAD_STATUS[status].label}. The board has been refreshed; try again.`;
+}
+
+/** The stage read under the lead's lock is not the one the admin moved the card from. */
+class StaleStageError extends Error {
+  readonly status: LeadStatus;
+  constructor(status: LeadStatus) {
+    super("Lead stage changed");
+    this.status = status;
+  }
+}
+
+/**
  * A lead change can show up almost anywhere in the dashboard: the pipeline,
  * the lead list and page, activities, the analytics overview, the sidebar
  * badges, and — when a deal is won — billing, agreements and projects. The
@@ -146,6 +180,8 @@ function wonLinks(result: Awaited<ReturnType<typeof markLeadWon>>): { label: str
 
 const moveSchema = z.object({
   leadId: recordId,
+  /** The stage the board or page showed the card in. The move is refused if that is out of date. */
+  fromStage: z.enum(BOARD_STAGES),
   toStage: z.enum(BOARD_STAGES),
   /** Neighbours at the drop position, top to bottom. Omit both for "top of column". */
   beforeId: recordId.nullish(),
@@ -160,27 +196,37 @@ const moveSchema = z.object({
  * - Out of Won into an open stage: reopens the deal. Paperwork already
  *   generated is kept (agreements and quotes are never deleted by a drag).
  * - Lost opportunities are not on the board; restore them first.
+ * - From a stale screen (the opportunity is no longer in `fromStage`):
+ *   refused, and the screen refreshed. Otherwise a reorder in Proposal could
+ *   reopen a deal won meanwhile in Billing, or a Won card still shown on a
+ *   stale board could re-run the win on a deal reopened since.
  */
 export async function moveLead(input: z.input<typeof moveSchema>): Promise<LeadActionResult> {
   const admin = await requireAdmin();
   const parsed = moveSchema.safeParse(input);
   if (!parsed.success) return { ok: false, message: "That move is not valid." };
-  const { leadId, toStage, beforeId, afterId } = parsed.data;
+  const { leadId, fromStage, toStage, beforeId, afterId } = parsed.data;
   if (beforeId === leadId || afterId === leadId) return { ok: false, message: "That move is not valid." };
 
+  // Leaving an open stage for Won runs the deal automation. Only on that path
+  // may the stage under the lock below differ from fromStage (it is Won then).
+  const winning = toStage === "WON" && fromStage !== "WON";
+  let won: Awaited<ReturnType<typeof markLeadWon>> | null = null;
   let result: LeadActionResult;
   try {
     // A first look, to pick the path. Both paths lock the lead and decide
     // again from what they read under the lock.
     const lead = await db.lead.findUnique({ where: { id: leadId }, select: { status: true } });
-    if (!lead) return { ok: false, message: LEAD_GONE };
-    if (lead.status === "LOST") return { ok: false, message: LEAD_LOST_MOVE };
+    if (!lead) throw new LeadNotFoundError();
+    if (lead.status === "LOST") throw new LeadLostError();
+    // Checked before the win automation, which must never run from a stale screen.
+    if (lead.status !== fromStage) throw new StaleStageError(lead.status);
 
-    if (toStage === "WON" && lead.status !== "WON") {
-      const won = await markLeadWon(leadId, admin);
+    if (winning) {
+      won = await markLeadWon(leadId, admin);
       result = { ok: true, message: won.message, links: wonLinks(won) };
     } else {
-      result = { ok: true, message: lead.status === toStage ? "Card moved." : `Moved to ${LEAD_STATUS[toStage].label}.` };
+      result = { ok: true, message: fromStage === toStage ? "Card moved." : `Moved to ${LEAD_STATUS[toStage].label}.` };
     }
 
     await db.$transaction(async (tx) => {
@@ -188,9 +234,14 @@ export async function moveLead(input: z.input<typeof moveSchema>): Promise<LeadA
       if (!current) throw new LeadNotFoundError();
       // Marked lost in another tab since the first look: leave it lost.
       if (current === "LOST") throw new LeadLostError();
-      // Won just above, then reopened elsewhere before this placement: the
-      // other change is newer, so don't place the card in the Won column.
-      if (toStage === "WON" && current !== "WON") return;
+      if (winning) {
+        // Won just above, then reopened elsewhere before this placement: the
+        // other change is newer, so don't place the card in the Won column.
+        if (current !== "WON") return;
+      } else if (current !== fromStage) {
+        // Moved (or won) by someone else since the first look.
+        throw new StaleStageError(current);
+      }
 
       const sortOrder = await positionInColumn(tx, toStage, leadId, beforeId ?? null, afterId ?? null);
       if (current !== toStage) {
@@ -212,12 +263,19 @@ export async function moveLead(input: z.input<typeof moveSchema>): Promise<LeadA
       await rebalanceIfNeeded(tx, toStage);
     });
   } catch (err) {
+    // Refresh on every failure: the screen that asked is out of date (the lead
+    // was deleted, lost or moved meanwhile), or a win above committed before
+    // a later step threw and the board must show it.
+    revalidateAdmin();
     if (err instanceof LeadNotFoundError || isGoneError(err)) return { ok: false, message: LEAD_GONE };
-    if (err instanceof LeadLostError) {
-      revalidateAdmin();
-      return { ok: false, message: LEAD_LOST_MOVE };
-    }
+    if (err instanceof LeadLostError) return { ok: false, message: LEAD_LOST_MOVE };
+    if (err instanceof StaleStageError) return { ok: false, message: staleStageMessage(err.status) };
+    if (err instanceof AgreementAmountTooLargeError) return { ok: false, message: AGREEMENT_TOO_LARGE_MESSAGE };
     console.error("[crm] moveLead failed:", err);
+    if (won) {
+      // The deal is won and its paperwork generated; only the card's place in the column was lost.
+      return { ok: true, message: `${won.message} Its position in the Won column could not be saved.`, links: wonLinks(won) };
+    }
     return { ok: false, message: "Could not move the card. Please try again." };
   }
 
@@ -321,6 +379,7 @@ export async function markWon(_prev: CrmActionState, formData: FormData): Promis
       revalidateAdmin();
       return failure("This opportunity was marked lost. Restore it before marking it won.");
     }
+    if (err instanceof AgreementAmountTooLargeError) return failure(AGREEMENT_TOO_LARGE_MESSAGE);
     console.error("[crm] markWon failed:", err);
     return failure("Could not mark the deal as won. Please try again.");
   }
@@ -618,9 +677,27 @@ const detailsSchema = z.object({
   ownerId: z.union([z.literal(""), recordId]).transform((v) => v || null),
 });
 
-/** The opportunity form: name, contact, company, revenue, probability, close date, tags, salesperson. */
+/** updatedAt of the lead as the edit form last saw it (an ISO timestamp). */
+const versionSchema = z.iso.datetime();
+
+const DETAILS_STALE =
+  "This opportunity changed since you opened it (for example it was won or edited by someone else). Review the latest values and save again.";
+
+/**
+ * The opportunity form: name, contact, company, revenue, probability, close date, tags, salesperson.
+ *
+ * The form posts every field, so it carries the lead's version (updatedAt)
+ * too: a form opened before a change elsewhere — a win that adopted the
+ * quotation's value, another admin's edit — is refused rather than writing
+ * its stale values back over it. The refusal hands back the current version,
+ * so saving the same form again is a deliberate overwrite.
+ */
 export async function updateLeadDetails(_prev: CrmActionState, formData: FormData): Promise<CrmActionState> {
   const admin = await requireAdmin();
+  const version = versionSchema.safeParse(formData.get("version") ?? undefined);
+  if (!version.success) {
+    return failure("This form is out of date. Reload the page to load the latest version of the opportunity.");
+  }
   const get = (k: string) => text(formData.get(k));
   const parsed = detailsSchema.safeParse({
     leadId: formData.get("leadId"),
@@ -650,14 +727,25 @@ export async function updateLeadDetails(_prev: CrmActionState, formData: FormDat
   }
   const { leadId, ownerId, value, ...d } = parsed.data;
 
-  let outcome: "saved" | "gone" | "inactive-owner";
+  let outcome: "saved" | "gone" | "inactive-owner" | "stale";
+  let latestVersion: string | undefined;
   try {
-    // Under the lead's lock, so the change log compares against the values
-    // this save actually replaces, not ones another tab changed meanwhile.
+    // Under the lead's lock, so the version check and the change log both
+    // see the values this save actually replaces: no other write can land
+    // between the read and the update.
     outcome = await db.$transaction(async (tx) => {
       if (!(await lockLead(tx, leadId))) return "gone";
-      const lead = await tx.lead.findUnique({ where: { id: leadId }, select: { estimatedValueFils: true, ownerId: true } });
+      const lead = await tx.lead.findUnique({
+        where: { id: leadId },
+        select: { estimatedValueFils: true, ownerId: true, updatedAt: true },
+      });
       if (!lead) return "gone";
+      // Any change to the lead counts (a stage move or new priority too):
+      // better a second click on Save than a silent overwrite.
+      if (lead.updatedAt.getTime() !== new Date(version.data).getTime()) {
+        latestVersion = lead.updatedAt.toISOString();
+        return "stale";
+      }
 
       // Only a change of salesperson must name an active admin. Keeping the
       // current one is always allowed, even after their account was
@@ -697,6 +785,11 @@ export async function updateLeadDetails(_prev: CrmActionState, formData: FormDat
   }
 
   if (outcome === "gone") return failure(LEAD_GONE);
+  if (outcome === "stale") {
+    // Refresh the page behind the form, so Cancel shows the latest values.
+    revalidateAdmin();
+    return failure(DETAILS_STALE, { version: latestVersion });
+  }
   if (outcome === "inactive-owner") {
     return failure("Choose an active team member as salesperson.", { fieldErrors: { ownerId: "Not an active admin." } });
   }

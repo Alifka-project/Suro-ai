@@ -33,6 +33,8 @@ import {
   scheduleTotals,
 } from "@/lib/admin/agreement-terms";
 import {
+  AGREEMENT_TOO_LARGE_MESSAGE,
+  AgreementAmountTooLargeError,
   ensureAgreementForQuote,
   onQuoteAccepted,
   syncAgreementFromQuote as syncSnapshotFromQuote,
@@ -149,6 +151,7 @@ export async function generateAgreement(_prev: ActionState, formData: FormData):
     if (e instanceof StaleError) return { error: "This quote changed elsewhere. Reload and try again." };
     // quoteId is unique on agreements: a concurrent submit already generated it.
     if (!isUniqueViolation(e)) {
+      if (e instanceof AgreementAmountTooLargeError) return { error: AGREEMENT_TOO_LARGE_MESSAGE };
       return unexpectedError("generateAgreement", e, "The agreement could not be generated. Please try again.");
     }
     const existing = await db.agreement.findUnique({ where: { quoteId }, select: { id: true } });
@@ -564,6 +567,7 @@ export async function setAgreementStatus(_prev: ActionState, formData: FormData)
   } catch (e) {
     if (e instanceof Refused) return { error: e.message };
     if (e instanceof StaleError) return { error: CHANGED_ELSEWHERE };
+    if (e instanceof AgreementAmountTooLargeError) return { error: AGREEMENT_TOO_LARGE_MESSAGE };
     return unexpectedError("setAgreementStatus", e, "The status could not be changed. Please try again.");
   }
 
@@ -647,6 +651,7 @@ export async function syncAgreementFromQuote(_prev: ActionState, formData: FormD
     });
   } catch (e) {
     if (e instanceof StaleError) return { error: CHANGED_ELSEWHERE };
+    if (e instanceof AgreementAmountTooLargeError) return { error: AGREEMENT_TOO_LARGE_MESSAGE };
     return unexpectedError("syncAgreementFromQuote", e, "The agreement could not be refreshed. Please try again.");
   }
 

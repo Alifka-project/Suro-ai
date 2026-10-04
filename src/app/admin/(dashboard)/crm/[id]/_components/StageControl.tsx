@@ -154,13 +154,18 @@ export function StageControl({
     target?.focus();
   }
 
-  function commitMove(stage: OpenStage) {
+  /**
+   * `from` is the stage this page shows. If the lead has left it meanwhile
+   * (won in Billing, moved in another tab) the server refuses the move and
+   * refreshes the page, and the stage bar falls back with the message.
+   */
+  function commitMove(stage: OpenStage, from: BoardStage) {
     setPanel(null);
     startMove(async () => {
       setShownStatus(stage);
       let result: Flash;
       try {
-        result = await moveLead({ leadId, toStage: stage });
+        result = await moveLead({ leadId, fromStage: from, toStage: stage });
       } catch {
         result = { ok: false, message: "Could not reach the server. Check your connection and try again." };
       }
@@ -173,7 +178,7 @@ export function StageControl({
     if (stage === "WON") return openPanel({ kind: "won" }, trigger);
     // Leaving Won reopens the deal: worth a confirmation, unlike a move between open stages.
     if (status === "WON") return openPanel({ kind: "reopen", stage }, trigger);
-    commitMove(stage);
+    commitMove(stage, status);
   }
 
   return (
@@ -285,7 +290,8 @@ export function StageControl({
                 type="button"
                 size="sm"
                 onClick={() => {
-                  commitMove(panel.stage);
+                  // The panel only opens on a Won deal: if it was reopened meanwhile, the move is refused.
+                  commitMove(panel.stage, "WON");
                   // Back to the stage segment that opened this, which stays focusable while it moves.
                   returnFocus();
                 }}

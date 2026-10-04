@@ -36,9 +36,14 @@ const detailsWithEcho = withEcho(updateLeadDetails);
  * Odoo's opportunity form: a read view (rendered on the server and passed in)
  * with an Edit button that swaps in the form. A successful save returns to
  * the read view, which the revalidation has already refreshed.
+ *
+ * The form also carries the lead's `version` (its updatedAt). The server
+ * refuses a save if the lead changed after that version, so a form opened
+ * earlier can't silently write its stale values over a newer change.
  */
 export function DetailsCard({
   leadId,
+  version,
   values,
   team,
   inactiveOwner,
@@ -47,6 +52,8 @@ export function DetailsCard({
   readView,
 }: {
   leadId: string;
+  /** The lead's updatedAt as an ISO string: the version `values` were read at. */
+  version: string;
   values: DetailsValues;
   /** Active admins, for the salesperson picker. */
   team: Member[];
@@ -106,6 +113,7 @@ export function DetailsCard({
         <DetailsForm
           key={state?.at ?? 0}
           leadId={leadId}
+          version={version}
           values={values}
           team={team}
           inactiveOwner={inactiveOwner}
@@ -126,6 +134,7 @@ export function DetailsCard({
 
 function DetailsForm({
   leadId,
+  version,
   values,
   team,
   inactiveOwner,
@@ -136,6 +145,7 @@ function DetailsForm({
   onCancel,
 }: {
   leadId: string;
+  version: string;
   values: DetailsValues;
   team: Member[];
   inactiveOwner: Member | null;
@@ -149,6 +159,12 @@ function DetailsForm({
   const failed = state && !state.ok ? state : null;
   const errors = failed?.fieldErrors ?? {};
   const v = (name: keyof DetailsValues) => seed(state, name, values[name]);
+  // The version the fields were loaded at, captured as they mount: a later
+  // refresh of the page (a newer version in props) must not quietly bless
+  // edits started from older values. After a refused save it is the version
+  // the server sent back, so saving again overwrites deliberately; after any
+  // other failure, the one this edit started from.
+  const [fieldsVersion] = useState(() => failed?.version ?? seed(state, "version", version));
 
   // On open, start at the first field; after a failed save, at the first field to fix.
   useEffect(() => {
@@ -177,6 +193,7 @@ function DetailsForm({
       noValidate
     >
       <input type="hidden" name="leadId" value={leadId} />
+      <input type="hidden" name="version" value={fieldsVersion} />
 
       <FormSection legend="Opportunity">
         <Field label="Opportunity name" htmlFor="opp-title" error={errors.title} className="sm:col-span-2">

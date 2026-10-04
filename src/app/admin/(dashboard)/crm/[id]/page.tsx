@@ -218,6 +218,7 @@ export default async function OpportunityPage({ params }: { params: Params }) {
           <section id="details" aria-label="Opportunity details" className="min-w-0 scroll-mt-24">
             <DetailsCard
               leadId={lead.id}
+              version={lead.updatedAt.toISOString()}
               values={detailsValues(lead)}
               team={team}
               inactiveOwner={lead.owner && !lead.owner.active ? { id: lead.owner.id, name: lead.owner.name } : null}

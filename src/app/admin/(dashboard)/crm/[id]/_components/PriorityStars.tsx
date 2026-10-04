@@ -48,7 +48,7 @@ export function PriorityStars({ leadId, priority }: { leadId: string; priority: 
                 className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-amber-400/10"
               >
                 <Star
-                  className={cn("h-[1.1rem] w-[1.1rem] transition-colors", lit ? "fill-amber-400 text-amber-500" : "text-ink-300")}
+                  className={cn("h-[1.1rem] w-[1.1rem] transition-colors", lit ? "fill-amber-400 text-amber-600" : "text-ink-500")}
                   aria-hidden="true"
                 />
               </button>

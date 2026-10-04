@@ -77,7 +77,7 @@ export const contactSchema = z
       .min(2, "Please enter your full name")
       .max(100, "That name is longer than we can store"),
 
-    email: z.email("Please enter a valid email address"),
+    email: z.email("Please enter a valid email address").max(254, "That email address is too long"),
 
     phone: z
       .string()
@@ -86,9 +86,13 @@ export const contactSchema = z
       .max(32, "That number looks too long")
       .regex(/^[+()\d\s.-]+$/, "Digits, spaces, and + ( ) - only"),
 
-    country: z.string().trim().min(2, "Which country are you based in?"),
+    country: z
+      .string()
+      .trim()
+      .min(2, "Which country are you based in?")
+      .max(80, "That country name is too long"),
 
-    city: z.string().trim().min(1, "Which city?"),
+    city: z.string().trim().min(1, "Which city?").max(80, "That city name is too long"),
 
     companyName: z.string().trim().max(120).optional().or(z.literal("")),
 
@@ -102,7 +106,9 @@ export const contactSchema = z
 
     services: z
       .array(z.enum(SERVICE_OPTIONS))
-      .min(1, "Pick at least one — 'Not sure yet' is a valid answer"),
+      .min(1, "Pick at least one — 'Not sure yet' is a valid answer")
+      .max(SERVICE_OPTIONS.length, "Pick each option at most once")
+      .refine((list) => new Set(list).size === list.length, "Pick each option at most once"),
 
     systems: z.string().trim().max(300).optional().or(z.literal("")),
 

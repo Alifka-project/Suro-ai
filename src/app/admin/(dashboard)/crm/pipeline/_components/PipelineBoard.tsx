@@ -204,7 +204,12 @@ export function PipelineBoard({ columns, q }: { columns: PipelineColumnData[]; q
   );
   const clearFocusRequest = useCallback(() => setFocusRequest(null), []);
 
-  /** Saves a move: shows it at once, then reports the server's answer. */
+  /**
+   * Saves a move: shows it at once, then reports the server's answer.
+   * `fromStage` is the stage the board showed the card in; the server refuses
+   * the move (and refreshes the board) if the card has left it meanwhile — won
+   * in Billing, moved in another tab — and the card falls back with the message.
+   */
   function commit(move: BoardMove, fromStage: BoardStage, { focus = false, pastCap = false }: CommitOptions = {}) {
     setNotice(null);
     // Rendered with the optimistic move, so the card takes the focus as it mounts in its new column.
@@ -215,6 +220,7 @@ export function PipelineBoard({ columns, q }: { columns: PipelineColumnData[]; q
       try {
         result = await moveLead({
           leadId: move.cardId,
+          fromStage,
           toStage: move.toStage,
           beforeId: move.beforeId,
           afterId: move.afterId,

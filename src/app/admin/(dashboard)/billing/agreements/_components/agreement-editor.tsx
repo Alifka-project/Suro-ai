@@ -1,7 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { startTransition, useActionState, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import {
+  startTransition,
+  useActionState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { ArrowDown, ArrowUp, CircleAlert, CircleCheck, LoaderCircle, Plus, Trash2 } from "lucide-react";
 import {
   Button,
@@ -26,6 +35,7 @@ type Row = MilestoneInput & { key: string };
 type RowErrors = Partial<Record<keyof MilestoneInput, string>>;
 
 const invalidClass = "border-red-300 focus:border-red-400 focus:ring-red-400/15";
+const ADD_MILESTONE_ID = "add-milestone";
 
 function newKey() {
   return `milestone-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -125,6 +135,18 @@ export function AgreementEditor({
   const money = (fils: number) => formatMoney(fils, currency);
 
   // ── Timeline rows ──────────────────────────────────────────────────────────
+  // Reordering or removing a row moves or unmounts the focused button, which
+  // drops focus to <body>. The handler records the id that should hold focus
+  // next and the layout effect moves it there once the rows are committed.
+  const pendingFocus = useRef<string | null>(null);
+  const [rowAnnouncement, setRowAnnouncement] = useState("");
+  useLayoutEffect(() => {
+    const id = pendingFocus.current;
+    if (id === null) return;
+    pendingFocus.current = null;
+    document.getElementById(id)?.focus();
+  }, [rows]);
+
   function updateRow(key: string, patch: Partial<MilestoneInput>) {
     setRows((current) => current.map((r) => (r.key === key ? { ...r, ...patch } : r)));
   }
@@ -132,16 +154,27 @@ export function AgreementEditor({
     setRows((current) => (current.length >= MAX_MILESTONES ? current : [...current, { key: newKey(), label: "", date: "" }]));
   }
   function removeRow(key: string) {
-    setRows((current) => current.filter((r) => r.key !== key));
+    const index = rows.findIndex((r) => r.key === key);
+    if (index === -1) return;
+    const neighbour = rows[index + 1] ?? rows[index - 1];
+    pendingFocus.current = neighbour ? `${neighbour.key}-label` : ADD_MILESTONE_ID;
+    setRows(rows.filter((r) => r.key !== key));
+    setRowAnnouncement(`Milestone ${index + 1} removed. ${rows.length - 1} of ${MAX_MILESTONES} left.`);
   }
   function moveRow(index: number, by: -1 | 1) {
-    setRows((current) => {
-      const target = index + by;
-      if (target < 0 || target >= current.length) return current;
-      const next = [...current];
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
+    const target = index + by;
+    if (target < 0 || target >= rows.length) return;
+    const next = [...rows];
+    [next[index], next[target]] = [next[target], next[index]];
+    // Stay on the pressed button; at either end it is now disabled, so take
+    // the opposite one.
+    const pressed = by === -1 ? "up" : "down";
+    const opposite = by === -1 ? "down" : "up";
+    const atEnd = target === 0 || target === rows.length - 1;
+    pendingFocus.current = `${rows[index].key}-${atEnd ? opposite : pressed}`;
+    setRows(next);
+    const label = rows[index].label.trim();
+    setRowAnnouncement(`${label ? `“${label}”` : "Milestone"} moved to position ${target + 1} of ${rows.length}.`);
   }
 
   // Submitting through startTransition (rather than <form action>) skips
@@ -429,6 +462,7 @@ export function AgreementEditor({
                     <div className="flex items-end gap-1 self-end sm:pt-[1.4rem]">
                       <button
                         type="button"
+                        id={`${row.key}-up`}
                         onClick={() => moveRow(index, -1)}
                         disabled={index === 0}
                         aria-label={`Move milestone ${n} up`}
@@ -438,6 +472,7 @@ export function AgreementEditor({
                       </button>
                       <button
                         type="button"
+                        id={`${row.key}-down`}
                         onClick={() => moveRow(index, 1)}
                         disabled={index === rows.length - 1}
                         aria-label={`Move milestone ${n} down`}
@@ -460,8 +495,18 @@ export function AgreementEditor({
             </ol>
           )}
           {fieldErrors.milestones && <p className="mt-3 text-[0.76rem] text-red-600">{fieldErrors.milestones}</p>}
+          <p role="status" aria-live="polite" className="sr-only">
+            {rowAnnouncement}
+          </p>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-ink-100 pt-4">
-            <Button type="button" variant="secondary" size="sm" onClick={addRow} disabled={rows.length >= MAX_MILESTONES}>
+            <Button
+              type="button"
+              id={ADD_MILESTONE_ID}
+              variant="secondary"
+              size="sm"
+              onClick={addRow}
+              disabled={rows.length >= MAX_MILESTONES}
+            >
               <Plus className="h-3.5 w-3.5" aria-hidden="true" />
               Add milestone
             </Button>

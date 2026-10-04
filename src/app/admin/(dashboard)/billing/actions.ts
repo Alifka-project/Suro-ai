@@ -18,7 +18,7 @@ import { Prisma, type AgreementStatus, type QuoteStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin/dal";
 import { INSTALLMENT_LABEL } from "@/lib/admin/agreement-terms";
-import { onQuoteAccepted } from "@/lib/admin/deals";
+import { AGREEMENT_TOO_LARGE_MESSAGE, AgreementAmountTooLargeError, onQuoteAccepted } from "@/lib/admin/deals";
 import { DEFAULT_CURRENCY, documentTotals, formatMoney } from "@/lib/admin/money";
 import { nextDocumentNumber } from "@/lib/admin/numbering";
 import { INVOICE_STATUS, QUOTE_STATUS } from "@/lib/admin/labels";
@@ -255,6 +255,9 @@ const SAVE_FAILED = "The document could not be saved. Your changes are still her
  */
 const PRICE_LOCKING_AGREEMENT: AgreementStatus[] = ["SENT", "SIGNED"];
 
+/** Postgres INT4 ceiling: the largest fils amount an agreement column can hold. */
+const MAX_AGREEMENT_FILS = 2_147_483_647;
+
 // ─── Create / edit ───────────────────────────────────────────────────────────
 
 export async function saveQuote(_prev: EditorState, formData: FormData): Promise<EditorState> {
@@ -276,6 +279,12 @@ export async function saveQuote(_prev: EditorState, formData: FormData): Promise
   };
   const items = toLineItems(d.items);
 
+  // A quotation becomes a service agreement, whose amounts are INT4 columns.
+  // Catch an oversized total here, where the admin can still split it.
+  if (documentTotals(items, d.vat).totalFils > MAX_AGREEMENT_FILS) {
+    return { error: AGREEMENT_TOO_LARGE_MESSAGE };
+  }
+
   let quoteId: string;
 
   try {
@@ -286,10 +295,18 @@ export async function saveQuote(_prev: EditorState, formData: FormData): Promise
     if (d.id) {
       const existing = await db.quote.findUnique({
         where: { id: d.id },
-        select: { status: true, agreement: { select: { number: true, status: true } } },
+        select: { status: true, leadId: true, agreement: { select: { number: true, status: true } } },
       });
       if (!existing) return { error: "This quote no longer exists." };
       if (existing.status !== "DRAFT") return { error: "Only draft quotes can be edited." };
+      // The agreement (and any invoices from it) belong to the quote's
+      // opportunity; moving only the quote would leave them on the old one.
+      if (existing.agreement && (existing.leadId ?? null) !== (d.leadId ?? null)) {
+        return {
+          error: `Service agreement ${existing.agreement.number} is linked to this quote's current opportunity. Delete the draft agreement first, then change the lead.`,
+          fieldErrors: { leadId: "Can't change while an agreement is linked" },
+        };
+      }
       const agreement = existing.agreement;
       if (agreement && PRICE_LOCKING_AGREEMENT.includes(agreement.status)) {
         return {
@@ -516,6 +533,7 @@ export async function setQuoteStatus(_prev: ActionState, formData: FormData): Pr
         // "Generate service agreement" in another tab). Everything here rolled
         // back, so one retry simply picks the existing agreement up.
         if (isUniqueViolation(e) && attempt === 1) continue;
+        if (e instanceof AgreementAmountTooLargeError) return { error: AGREEMENT_TOO_LARGE_MESSAGE };
         return unexpectedError("setQuoteStatus", e, "The quote could not be accepted. Please try again.");
       }
     }
@@ -803,6 +821,11 @@ export async function deleteDraftQuote(_prev: ActionState, formData: FormData): 
 
   try {
     await db.$transaction(async (tx) => {
+      // Lock the quote first, in its own statement (the same order agreement
+      // generation and "Mark won" lock it in). That waits for an in-flight
+      // generation to commit, and the delete below then runs with a fresh
+      // snapshot that sees its agreement — so the agreement can't be orphaned.
+      await tx.$queryRaw`SELECT "id" FROM "Quote" WHERE "id" = ${id} FOR UPDATE`;
       // Conditional delete: if it was sent — or an agreement was generated
       // from it — in the meantime, nothing is removed.
       const deleted = await tx.quote.deleteMany({ where: { id, status: "DRAFT", agreement: { is: null } } });

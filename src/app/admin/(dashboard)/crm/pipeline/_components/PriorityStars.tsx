@@ -61,7 +61,7 @@ export function PriorityStars({
             className="flex h-6 w-6 items-center justify-center rounded-md transition-colors hover:bg-amber-400/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azure-400"
           >
             <Star
-              className={cn("h-3.5 w-3.5 transition-colors", filled ? "fill-amber-400 text-amber-500" : "text-ink-300")}
+              className={cn("h-3.5 w-3.5 transition-colors", filled ? "fill-amber-400 text-amber-600" : "text-ink-500")}
               aria-hidden="true"
             />
           </button>
@@ -77,7 +77,7 @@ export function PriorityStarsStatic({ priority }: { priority: number }) {
     <span className="-ml-1 flex shrink-0 items-center" aria-hidden="true">
       {STARS.map((n) => (
         <span key={n} className="flex h-6 w-6 items-center justify-center">
-          <Star className={cn("h-3.5 w-3.5", n <= priority ? "fill-amber-400 text-amber-500" : "text-ink-300")} />
+          <Star className={cn("h-3.5 w-3.5", n <= priority ? "fill-amber-400 text-amber-600" : "text-ink-500")} />
         </span>
       ))}
     </span>

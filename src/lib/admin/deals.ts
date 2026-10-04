@@ -16,6 +16,7 @@ import { nextDocumentNumber } from "./numbering";
 import { leadTitle } from "./pipeline";
 import { addDaysToDateInput, dateInputToDate, toDateInputValue } from "./time";
 import { logLeadEvent } from "./timeline";
+import { NOT_SURE_OPTION } from "@/lib/packages";
 
 /*
  * Deal automation — how a won opportunity turns into paperwork.
@@ -52,6 +53,21 @@ export type GeneratedAgreement = { id: string; number: string; created: boolean 
 
 /** Postgres INT4 ceiling — the largest fils amount an Int column can hold. */
 const MAX_FILS = 2_147_483_647;
+
+/** The quotation is too large for an agreement's amount columns (about AED 21.4 million). */
+export class AgreementAmountTooLargeError extends Error {
+  constructor() {
+    super("Agreement amount exceeds the storable maximum");
+  }
+}
+
+export const AGREEMENT_TOO_LARGE_MESSAGE =
+  "This quotation's total is above AED 21,474,836.47, the largest amount an agreement can hold. Split the work into more than one quotation.";
+
+/** Packages the client actually asked for: "Not sure yet" is a form answer, not a package. */
+function requestedPackages(services: readonly string[]): string[] {
+  return services.filter((s) => s !== NOT_SURE_OPTION);
+}
 
 /** Today on the business clock, as a stored calendar date (12:00 UTC). */
 function today(): Date {
@@ -99,6 +115,9 @@ type ScheduleSplit = Pick<ScheduleTerms, "depositPct" | "midpointPct" | "finalPc
 export function snapshotFromQuote(quote: QuoteForSnapshot, schedule: ScheduleSplit) {
   const { subtotalFils } = documentTotals(quote.items, quote.vatBps);
   const { totalFils } = scheduleTotals({ ...schedule, subtotalFils, vatBps: quote.vatBps });
+  // Agreement amounts are INT4 columns. Refuse before any write: once Postgres
+  // rejects a statement the whole transaction is aborted.
+  if (subtotalFils > MAX_FILS || totalFils > MAX_FILS) throw new AgreementAmountTooLargeError();
   return {
     clientName: quote.clientName,
     clientEmail: quote.clientEmail.trim() || null,
@@ -150,7 +169,9 @@ export async function ensureAgreementForQuote(tx: Tx, quoteId: string, actor: Ac
         .map((i) => i.description.trim())
         .filter(Boolean)
         .slice(0, 30),
-      packageRef: lead?.services.length ? lead.services.join(" + ").slice(0, 200) : null,
+      packageRef: lead && requestedPackages(lead.services).length
+        ? requestedPackages(lead.services).join(" + ").slice(0, 200)
+        : null,
       deliverables: [...DEFAULT_DELIVERABLES],
       outOfScope: [...DEFAULT_OUT_OF_SCOPE],
       assumptions: [...DEFAULT_ASSUMPTIONS],
@@ -367,7 +388,8 @@ export async function markLeadWon(leadId: string, actor: Actor): Promise<WonResu
       if (!quote && (lead.estimatedValueFils ?? 0) > 0) {
         const issue = toDateInputValue(new Date());
         const number = await nextDocumentNumber("quote", tx);
-        const description = `${leadTitle(lead)}${lead.services.length ? ` — ${lead.services.join(", ")}` : ""}`.slice(0, 500);
+        const packages = requestedPackages(lead.services);
+        const description = `${leadTitle(lead)}${packages.length ? ` — ${packages.join(", ")}` : ""}`.slice(0, 500);
         const created = await tx.quote.create({
           data: {
             number,

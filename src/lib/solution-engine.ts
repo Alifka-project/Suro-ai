@@ -750,6 +750,12 @@ const PLAYBOOKS: Playbook[] = [
     packageId: "data-flow-reporting",
     keywords: [
       { term: "inventory", weight: 3 },
+      // WMS vs ERP stock that disagrees is a reconciliation problem, not a warehouse-floor one.
+      { term: "stock never match", weight: 4 },
+      { term: "stock doesn't match", weight: 4 },
+      { term: "stock does not match", weight: 4 },
+      { term: "stock mismatch", weight: 4 },
+      { term: "stock discrepanc", weight: 4 },
       { term: "stock out", weight: 3 },
       { term: "stockout", weight: 3 },
       { term: "stock level", weight: 3 },
@@ -931,7 +937,7 @@ const PLAYBOOKS: Playbook[] = [
     diagnosis: (ctx) =>
       `Warehouse waste is often about information: paper pick lists, counts written down and typed in later, and no clear view of the shift until it ends.${
         ctx.systems.length
-          ? ` ${systemClause(ctx.systems, "Your systems")} hold part of the picture, but not in real time.`
+          ? ` ${systemClause(ctx.systems, "Your systems")} ${ctx.systems.length === 1 ? "holds" : "hold"} part of the picture, but not in real time.`
           : ""
       } You rarely need to replace the WMS; closing the gaps around it is usually enough.`,
     blueprint: [
@@ -1374,7 +1380,7 @@ const PLAYBOOKS: Playbook[] = [
     diagnosis: (ctx) =>
       `Shared spreadsheets work until several people need to edit, search and approve the same data at once. Then versions multiply and nobody is sure which file is current.${
         ctx.systems.length
-          ? ` A purpose-built app can sit alongside ${systemClause(ctx.systems, "your current tools")} and read from them.`
+          ? ` A purpose-built app can sit alongside ${systemClause(ctx.systems, "your current tools")} and read from ${ctx.systems.length === 1 ? "it" : "them"}.`
           : ""
       } One web app with proper logins, a database and approval steps gives your team, or your customers, one place to work.`,
     blueprint: [
@@ -1624,9 +1630,11 @@ const FALLBACK: Omit<Playbook, "keywords"> = {
   packageId: "automation-audit",
   diagnosis: (ctx) =>
     `Thanks, that's a start.${
-      ctx.systems.length
+      ctx.systems.length > 1
         ? ` You're working across ${systemClause(ctx.systems, "several tools")}, which usually means the friction is in the handovers between them.`
-        : ""
+        : ctx.systems.length === 1
+          ? ` You mentioned ${ctx.systems[0]}, so we'd start by looking at what goes in and out of it.`
+          : ""
     } Most processes we see follow the same shape: information arrives in a messy form, a person tidies it up, and a system uses it. An Automation Audit looks at your files, systems and manual steps, and tells you what's worth automating first.`,
   blueprint: [
     {
@@ -1689,13 +1697,38 @@ function matchAtWordStart(text: string, term: string): string | null {
 }
 
 /** Acronyms the matcher sees lower-cased, restored for display ("hr" -> "HR"). */
-const ACRONYMS = new Set(["hr", "erp", "crm", "wms", "tms", "edi", "api", "apis", "po", "pos", "rfq", "rfqs", "kpi", "kpis", "ap", "ar", "sap", "pdf", "csv", "vba", "etd", "eta", "sku", "skus", "ai"]);
+const ACRONYMS = new Set(["hr", "erp", "crm", "wms", "tms", "edi", "api", "po", "rfq", "kpi", "ap", "ar", "sap", "pdf", "csv", "vba", "etd", "eta", "sku", "ai", "bi"]);
 
+/** "po" -> "PO", "pos" -> "POs" (not "POS"), "rfqs" -> "RFQs". Other words unchanged. */
+function displayWord(w: string): string {
+  if (ACRONYMS.has(w)) return w.toUpperCase();
+  if (w.length > 2 && w.endsWith("s") && ACRONYMS.has(w.slice(0, -1))) return `${w.slice(0, -1).toUpperCase()}s`;
+  return w;
+}
+
+/** Splits on spaces and slashes, keeping them, so "ap/ar" becomes "AP/AR". */
 function displaySignal(phrase: string): string {
-  return phrase
-    .split(" ")
-    .map((w) => (ACRONYMS.has(w) ? w.toUpperCase() : w))
-    .join(" ");
+  return phrase.split(/([ /])/).map(displayWord).join("");
+}
+
+/**
+ * True when a matched phrase is nothing but a system already shown as its own
+ * chip ("excel", "wms", or an alias such as "spreadsheets"), so the answer
+ * doesn't list "Excel" and "excel" side by side. Phrases that merely contain a
+ * system name ("excel reports") are kept.
+ */
+function isOnlyASystem(phrase: string, systems: string[]): boolean {
+  const p = phrase.trim().toLowerCase();
+  // A word of a detected system's own name: "bi" next to "Power BI".
+  if (systems.some((label) => label.toLowerCase().split(/\s+/).includes(p))) return true;
+  return SYSTEM_PATTERNS.some(
+    ({ label, patterns }) =>
+      systems.includes(label) &&
+      patterns.some((re) => {
+        const m = phrase.match(re);
+        return m !== null && m[0].trim().length === phrase.trim().length;
+      }),
+  );
 }
 
 export function generateSolution(rawInput: string): SolutionResult {
@@ -1761,7 +1794,10 @@ export function generateSolution(rawInput: string): SolutionResult {
     stack: pb.stack,
     outcomes: pb.outcomes,
     followUp: pb.followUp,
-    signals: signals.slice(0, 5).map(displaySignal),
+    signals: signals
+      .filter((s) => !isOnlyASystem(s, systems))
+      .slice(0, 5)
+      .map(displaySignal),
     systems,
   };
 }

@@ -51,6 +51,10 @@
   --color-mint-200: #c8e8dc;
   /* Mint dark enough for small text: 5.5:1 on white (mint-600 is for fills). */
   --color-mint-ink: #267567;
+  /* Text-safe shades for small badge text (AA on white and on their own tints). */
+  --color-aqua-ink: #1f7189;
+  --color-lilac-ink: #6650b0;
+  --color-blush-ink: #b02e63;
 
   /* — Lilac (02/04/07/09) */
   --color-lilac-600: #9b8ad4;
@@ -525,6 +529,17 @@
   [style$="opacity:0"] {
     opacity: 1 !important;
     transform: none !important;
+  }
+
+  /* Business functions: the tabs need JS, so show every panel stacked instead. */
+  [data-fn-tablist] {
+    display: none !important;
+  }
+  [data-fn-panel][hidden] {
+    display: block !important;
+  }
+  [data-fn-panel] + [data-fn-panel] {
+    margin-top: 1rem;
   }
 }
 

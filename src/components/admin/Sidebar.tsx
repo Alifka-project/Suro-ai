@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -21,6 +21,9 @@ import { cn } from "./ui";
 
 /** True on `href` itself and on every route nested under it. */
 const within = (path: string, href: string) => path === href || path.startsWith(`${href}/`);
+
+/** What Tab can land on inside the drawer, for the focus trap. */
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 type Counts = { newLeads: number; overdueActivities: number };
 
@@ -141,6 +144,47 @@ export function Sidebar({
     setLastRoute(route);
     setOpen(false);
   }
+
+  // The drawer is a modal dialog, so it owns the keyboard while open: focus
+  // moves in on open, Escape closes it, Tab and Shift+Tab wrap inside it, and
+  // focus goes back to the menu button on close (however it was closed).
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const drawerRef = useRef<HTMLElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const toggle = toggleRef.current;
+    closeRef.current?.focus();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        return;
+      }
+      const drawer = drawerRef.current;
+      if (event.key !== "Tab" || !drawer) return;
+      const focusable = Array.from(drawer.querySelectorAll<HTMLElement>(FOCUSABLE));
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (!drawer.contains(active)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      toggle?.focus();
+    };
+  }, [open]);
 
   const inSection = (item: NavItem) => (item.exact ? pathname === item.section : within(pathname, item.section));
   const accountActive = within(pathname, "/admin/account");
@@ -291,6 +335,7 @@ export function Sidebar({
           </span>
         </Link>
         <button
+          ref={toggleRef}
           type="button"
           onClick={() => setOpen(true)}
           aria-label={
@@ -322,14 +367,18 @@ export function Sidebar({
 
       {open && (
         <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
+          {/* A pointer target only: keyboard users have the close button and
+              Escape, so the invisible full-screen scrim stays out of the Tab order. */}
           <button
             type="button"
+            tabIndex={-1}
             aria-label="Close navigation"
             onClick={() => setOpen(false)}
             className="absolute inset-0 bg-ink-900/30 backdrop-blur-sm"
           />
-          <aside className="absolute inset-y-0 left-0 w-72 max-w-[85vw] bg-white shadow-2xl">
+          <aside ref={drawerRef} className="absolute inset-y-0 left-0 w-72 max-w-[85vw] bg-white shadow-2xl">
             <button
+              ref={closeRef}
               type="button"
               onClick={() => setOpen(false)}
               aria-label="Close navigation"

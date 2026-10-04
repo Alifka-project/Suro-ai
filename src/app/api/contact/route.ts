@@ -118,9 +118,10 @@ function buildEmail(
 }
 
 export async function POST(request: Request) {
+  // Vercel sets x-real-ip itself; x-forwarded-for's first entry can be client-supplied.
   const ip =
+    request.headers.get("x-real-ip")?.trim() ||
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    request.headers.get("x-real-ip") ||
     "unknown";
 
   if (rateLimited(ip)) {
@@ -130,9 +131,16 @@ export async function POST(request: Request) {
     );
   }
 
+  // A genuine submission is a few kilobytes (the message is capped at 2,000
+  // characters). Refuse anything far larger before parsing it.
+  const MAX_BODY_CHARS = 32_000;
   let body: unknown;
   try {
-    body = await request.json();
+    const raw = await request.text();
+    if (raw.length > MAX_BODY_CHARS) {
+      return NextResponse.json({ ok: false, error: "That submission is too large." }, { status: 413 });
+    }
+    body = JSON.parse(raw);
   } catch {
     return NextResponse.json(
       { ok: false, error: "Malformed request." },
