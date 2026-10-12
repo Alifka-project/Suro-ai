@@ -251,14 +251,7 @@ function FunctionPanel({ fn }: { fn: BusinessFunction }) {
                   href={`#service-${pkg.id}`}
                   className="relative inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/85 px-3 py-1.5 text-[0.8rem] font-semibold text-abyss-600 ring-1 ring-ink-200/80 transition-colors hover:bg-white hover:text-abyss-700 hover:ring-aqua-400"
                 >
-                  {/* One text run, so the link's name reads "Package 2 Connect". */}
-                  <span className="min-w-0">
-                    <span className="sr-only">Package </span>
-                    <span className="font-mono text-[0.7rem] font-medium text-ink-600">
-                      {pkg.number}
-                    </span>{" "}
-                    {pkg.name}
-                  </span>
+                  <span className="min-w-0">{pkg.name}</span>
                   <ArrowRight className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 </a>
               </li>

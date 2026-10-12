@@ -8,7 +8,6 @@ import { BRAND, CONTACT, PROFILE, SECTION_IDS, whatsappHref } from "@/lib/site";
 const COMPANY_LINKS = [
   { id: SECTION_IDS.painPoints, label: "Pain points" },
   { id: SECTION_IDS.functions, label: "Functions" },
-  { id: SECTION_IDS.process, label: "How it works" },
   { id: SECTION_IDS.about, label: "About" },
   { id: SECTION_IDS.faq, label: "FAQ" },
 ];

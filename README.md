@@ -30,14 +30,12 @@ pitch.
 | --- | --- | --- | --- |
 | 1 | Hero: headline, value pillars, solution console | `Hero.tsx` | `#top` |
 | 2 | Running capability badges | `CapabilityMarquee.tsx` | — |
-| 3 | "Does this sound familiar?" | `Hook.tsx` | `#familiar` |
-| 4 | Pain points | `PainPoints.tsx` | `#pain-points` |
-| 5 | Technology-agnostic approach | `Approach.tsx` | `#approach` |
-| 6 | Business functions | `BusinessFunctions.tsx` | `#functions` |
-| 7 | Services: packages 0–9 | `Services.tsx` | `#services`, each package `#service-<id>` |
-| 8 | How it works | `Process.tsx` | `#process` |
-| 9 | About / profile | `About.tsx` | `#about` |
-| 10 | FAQ | `Faq.tsx` | `#faq` |
+| 3 | Pain points | `PainPoints.tsx` | `#pain-points` |
+| 4 | Technology-agnostic approach | `Approach.tsx` | `#approach` |
+| 5 | Business functions | `BusinessFunctions.tsx` | `#functions` |
+| 6 | Services: packages 0–9 | `Services.tsx` | `#services`, each package `#service-<id>` |
+| 7 | About / profile | `About.tsx` | `#about` |
+| 8 | FAQ | `Faq.tsx` | `#faq` |
 | — | Footer with the contact form | `src/components/layout/Footer.tsx`, `ContactForm.tsx` | `#contact` |
 
 ### Where the content lives

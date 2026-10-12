@@ -23,7 +23,6 @@ const LINKS = [
   { id: SECTION_IDS.painPoints, label: "Pain points" },
   { id: SECTION_IDS.functions, label: "Functions" },
   { id: SECTION_IDS.services, label: "Services" },
-  { id: SECTION_IDS.process, label: "How it works" },
   { id: SECTION_IDS.about, label: "About" },
   { id: SECTION_IDS.faq, label: "FAQ" },
 ] as const;
@@ -33,7 +32,7 @@ const LINK_IDS: readonly string[] = LINKS.map((l) => l.id);
 /**
  * The nav section currently crossing a thin band a little above the middle of
  * the viewport, or null while the visitor is in a section the nav doesn't
- * list (the hero, the hook, the approach band, the footer).
+ * list (the hero, the approach band, the footer).
  */
 function useActiveSection(ids: readonly string[]): string | null {
   const [active, setActive] = useState<string | null>(null);

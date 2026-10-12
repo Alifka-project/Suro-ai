@@ -5,12 +5,10 @@ import { Nav } from "@/components/layout/Nav";
 import { Footer } from "@/components/layout/Footer";
 import { Hero } from "@/components/sections/Hero";
 import { CapabilityMarquee } from "@/components/sections/CapabilityMarquee";
-import { Hook } from "@/components/sections/Hook";
 import { PainPoints } from "@/components/sections/PainPoints";
 import { Approach } from "@/components/sections/Approach";
 import { BusinessFunctions } from "@/components/sections/BusinessFunctions";
 import { Services } from "@/components/sections/Services";
-import { Process } from "@/components/sections/Process";
 import { About } from "@/components/sections/About";
 import { Faq } from "@/components/sections/Faq";
 
@@ -30,12 +28,10 @@ export default function Home() {
       <main id="main" className="flex-1">
         <Hero />
         <CapabilityMarquee />
-        <Hook />
         <PainPoints />
         <Approach />
         <BusinessFunctions />
         <Services />
-        <Process />
         <About hasFilm={hasFilm} hasPoster={hasPoster} />
         <Faq />
       </main>

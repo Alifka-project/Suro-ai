@@ -78,12 +78,10 @@ export const PROFILE = {
 
 /** Section anchors, used by the nav, the footer and in-page CTAs. */
 export const SECTION_IDS = {
-  hook: "familiar",
   painPoints: "pain-points",
   approach: "approach",
   functions: "functions",
   services: "services",
-  process: "process",
   about: "about",
   faq: "faq",
   contact: "contact",
