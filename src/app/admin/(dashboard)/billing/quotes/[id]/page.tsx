@@ -20,6 +20,7 @@ import { AGREEMENT_STATUS } from "@/lib/admin/agreement-terms";
 import { isQuoteLapsed } from "@/lib/admin/invoices";
 import { documentTotals, formatMoney, formatVat } from "@/lib/admin/money";
 import { LEAD_STATUS, QUOTE_STATUS, timeAgo } from "@/lib/admin/labels";
+import { billingBackHref, clientHref, moduleEnabled } from "@/lib/admin/modules";
 import { leadTitle } from "@/lib/admin/pipeline";
 import { calendarDaysBetween, formatBusinessDate, formatBusinessDateTime } from "@/lib/admin/time";
 import { convertQuoteToInvoice, deleteDraftQuote, setQuoteStatus } from "../../actions";
@@ -53,6 +54,16 @@ export default async function QuotePage({ params }: Props) {
   const totals = documentTotals(quote.items, quote.vatBps);
   const invoice = quote.invoice;
   const agreement = quote.agreement;
+  // Switched-off modules (src/lib/admin/modules.ts) keep their data, but none
+  // of their pages or actions are offered here. With agreements off, new
+  // quotes never get one, so the agreement branches below only matter for
+  // agreements generated before the module was switched off.
+  const agreementsOn = moduleEnabled("agreements");
+  const projectsOn = moduleEnabled("projects");
+  const crmOn = moduleEnabled("crm");
+  const back = billingBackHref("quotes");
+  /** The agreement as far as the page may link to or act on it. */
+  const shownAgreement = agreementsOn ? agreement : null;
   // Billed in stages through the agreement: the quote can't also be billed in full.
   const stagedInvoices = agreement?.invoices ?? [];
   const staged = stagedInvoices.length > 0;
@@ -84,10 +95,10 @@ export default async function QuotePage({ params }: Props) {
               tone: "amber",
               text: `Service agreement ${agreement.number} was ${signed ? "signed" : "sent"} at this price, so the quote is locked. Mark it as sent to record that the client has it.`,
             }
-          : agreement && agreement.status === "DRAFT"
+          : shownAgreement && shownAgreement.status === "DRAFT"
             ? {
                 tone: "neutral",
-                text: `Not sent yet. Send it together with service agreement ${agreement.number}: marking the agreement as sent marks this quote as sent too.`,
+                text: `Not sent yet. Send it together with service agreement ${shownAgreement.number}: marking the agreement as sent marks this quote as sent too.`,
               }
             : { tone: "neutral", text: "Not sent yet. Print or save it as a PDF, send it to the client, then mark it as sent." };
       break;
@@ -107,12 +118,12 @@ export default async function QuotePage({ params }: Props) {
         ? { tone: "mint", text: `Accepted and invoiced as ${invoice.number}.` }
         : staged && agreement
           ? { tone: "mint", text: `Accepted and billed in stages through service agreement ${agreement.number}.` }
-          : agreement
+          : shownAgreement
             ? {
                 tone: "mint",
                 text: signed
-                  ? `Accepted and signed as service agreement ${agreement.number}. Bill it in stages from its payment schedule, or convert it to one invoice.`
-                  : `Accepted. Bill it in stages from service agreement ${agreement.number}'s payment schedule, or convert it to one invoice.`,
+                  ? `Accepted and signed as service agreement ${shownAgreement.number}. Bill it in stages from its payment schedule, or convert it to one invoice.`
+                  : `Accepted. Bill it in stages from service agreement ${shownAgreement.number}'s payment schedule, or convert it to one invoice.`,
               }
             : { tone: "mint", text: "Accepted. Convert it to an invoice to bill the client — every line carries over." };
       break;
@@ -127,7 +138,7 @@ export default async function QuotePage({ params }: Props) {
   return (
     <>
       <div className="print:hidden">
-        <BackLink href="/admin/billing?tab=quotes">All quotes</BackLink>
+        <BackLink href={back.href}>{back.label}</BackLink>
         <PageHeader
           eyebrow="Quotation"
           title={quote.number}
@@ -165,8 +176,8 @@ export default async function QuotePage({ params }: Props) {
             <p className="mt-1 text-[0.75rem] text-ink-500">Quote total incl. {formatVat(quote.vatBps)} VAT</p>
             <StatusNote tone={note.tone}>{note.text}</StatusNote>
 
-            {/* Keeps the outcome ("Service agreement … generated · opportunity
-                marked Won") on screen after the button that caused it is gone. */}
+            {/* Keeps the outcome ("Quotation … accepted · client marked Goal")
+                on screen after the button that caused it is gone. */}
             <ActionNotices className="mt-4">
               <div className="grid gap-2">
                 {quote.status === "ACCEPTED" &&
@@ -175,10 +186,10 @@ export default async function QuotePage({ params }: Props) {
                       <Receipt className={ICON} aria-hidden="true" />
                       View invoice {invoice.number}
                     </LinkButton>
-                  ) : agreement ? (
+                  ) : shownAgreement ? (
                     <>
                       <LinkButton
-                        href={`/admin/billing/agreements/${agreement.id}#payment-schedule`}
+                        href={`/admin/billing/agreements/${shownAgreement.id}#payment-schedule`}
                         variant={staged ? "secondary" : "primary"}
                         className="w-full"
                       >
@@ -193,7 +204,7 @@ export default async function QuotePage({ params }: Props) {
                           pendingLabel="Creating invoice"
                           confirm={{
                             title: "Bill the whole quote at once?",
-                            description: `One invoice for the full amount, instead of the stages in ${agreement.number}. Stage invoices can't be created afterwards.`,
+                            description: `One invoice for the full amount, instead of the stages in ${shownAgreement.number}. Stage invoices can't be created afterwards.`,
                             confirmLabel: "Convert to one invoice",
                             tone: "primary",
                           }}
@@ -204,15 +215,18 @@ export default async function QuotePage({ params }: Props) {
                       )}
                     </>
                   ) : (
-                    <ActionButton
-                      action={convertQuoteToInvoice}
-                      fields={{ id: quote.id }}
-                      variant="primary"
-                      pendingLabel="Creating invoice"
-                    >
-                      <Receipt className={ICON} aria-hidden="true" />
-                      Convert to invoice
-                    </ActionButton>
+                    // Billed in stages (only possible through an agreement) can't also be billed in full.
+                    !staged && (
+                      <ActionButton
+                        action={convertQuoteToInvoice}
+                        fields={{ id: quote.id }}
+                        variant="primary"
+                        pendingLabel="Creating invoice"
+                      >
+                        <Receipt className={ICON} aria-hidden="true" />
+                        Convert to invoice
+                      </ActionButton>
+                    )
                   ))}
 
                 {can("SENT") && quote.status === "DRAFT" && (
@@ -242,10 +256,13 @@ export default async function QuotePage({ params }: Props) {
                     confirm={{
                       title: `Mark ${quote.number} as accepted?`,
                       description: [
-                        agreement
-                          ? `Service agreement ${agreement.number} is kept${agreement.status === "DRAFT" ? " and refreshed to this price" : ""}.`
-                          : "A draft service agreement is generated from this quote.",
-                        quote.lead && quote.lead.status !== "WON" ? "The opportunity is marked Won." : "",
+                        agreementsOn &&
+                          (agreement
+                            ? `Service agreement ${agreement.number} is kept${agreement.status === "DRAFT" ? " and refreshed to this price" : ""}.`
+                            : "A draft service agreement is generated from this quote."),
+                        quote.lead && quote.lead.status !== "WON"
+                          ? `The ${crmOn ? "opportunity" : "client"} is marked ${LEAD_STATUS.WON.label}.`
+                          : "",
                       ]
                         .filter(Boolean)
                         .join(" "),
@@ -270,7 +287,7 @@ export default async function QuotePage({ params }: Props) {
                   </ActionButton>
                 )}
                 {/* With an agreement, the project starts from its SOW (tasks and dates filled in). */}
-                {quote.status === "ACCEPTED" && quote.lead && !agreement && (
+                {projectsOn && quote.status === "ACCEPTED" && quote.lead && !agreement && (
                   <LinkButton href={`/admin/projects/new?leadId=${quote.lead.id}`} variant="secondary" className="w-full">
                     <FolderKanban className={ICON} aria-hidden="true" />
                     Start a project
@@ -294,7 +311,7 @@ export default async function QuotePage({ params }: Props) {
                     )}
                     {agreement ? (
                       <p className="rounded-xl bg-haze px-3 py-2.5 text-[0.76rem] text-ink-600">
-                        {agreement.status === "DRAFT"
+                        {agreementsOn && agreement.status === "DRAFT"
                           ? `To delete this draft, delete its draft agreement ${agreement.number} first.`
                           : `Service agreement ${agreement.number} was generated from this quote, so it stays on record.`}
                       </p>
@@ -320,60 +337,62 @@ export default async function QuotePage({ params }: Props) {
             </ActionNotices>
           </Card>
 
-          <Card className="mt-6">
-            <CardHeader
-              title="Service agreement"
-              action={agreement ? <StatusBadge status={agreement.status} map={AGREEMENT_STATUS} /> : undefined}
-            />
-            {agreement ? (
-              <>
-                <ul>
-                  <LinkedRecord
-                    href={`/admin/billing/agreements/${agreement.id}`}
-                    icon={FileSignature}
-                    label="Agreement + SOW"
-                    title={agreement.number}
-                    subtitle={`${formatMoney(agreement.totalFils, agreement.currency)} incl. VAT`}
-                  />
-                </ul>
-                {agreement.status !== "CANCELLED" &&
-                  (agreement.subtotalFils !== totals.subtotalFils || agreement.vatBps !== quote.vatBps) && (
-                    <StatusNote tone="amber">
-                      {agreement.status === "DRAFT"
-                        ? "The draft agreement still has the earlier price. Refresh it from this quotation on the agreement page."
-                        : `The agreement was ${agreement.status === "SIGNED" ? "signed" : "sent"} at a different price (${formatMoney(agreement.totalFils, agreement.currency)} incl. VAT). Its payment schedule is what gets billed in stages.`}
+          {agreementsOn && (
+            <Card className="mt-6">
+              <CardHeader
+                title="Service agreement"
+                action={agreement ? <StatusBadge status={agreement.status} map={AGREEMENT_STATUS} /> : undefined}
+              />
+              {agreement ? (
+                <>
+                  <ul>
+                    <LinkedRecord
+                      href={`/admin/billing/agreements/${agreement.id}`}
+                      icon={FileSignature}
+                      label="Agreement + SOW"
+                      title={agreement.number}
+                      subtitle={`${formatMoney(agreement.totalFils, agreement.currency)} incl. VAT`}
+                    />
+                  </ul>
+                  {agreement.status !== "CANCELLED" &&
+                    (agreement.subtotalFils !== totals.subtotalFils || agreement.vatBps !== quote.vatBps) && (
+                      <StatusNote tone="amber">
+                        {agreement.status === "DRAFT"
+                          ? "The draft agreement still has the earlier price. Refresh it from this quotation on the agreement page."
+                          : `The agreement was ${agreement.status === "SIGNED" ? "signed" : "sent"} at a different price (${formatMoney(agreement.totalFils, agreement.currency)} incl. VAT). Its payment schedule is what gets billed in stages.`}
+                      </StatusNote>
+                    )}
+                  {staged && (
+                    <StatusNote tone="neutral">
+                      Billed in stages: {stagedInvoices.map((i) => i.number).join(", ")}.
                     </StatusNote>
                   )}
-                {staged && (
-                  <StatusNote tone="neutral">
-                    Billed in stages: {stagedInvoices.map((i) => i.number).join(", ")}.
-                  </StatusNote>
-                )}
-              </>
-            ) : quote.status === "DECLINED" || quote.status === "EXPIRED" ? (
-              <p className="text-[0.82rem] text-ink-500">
-                No agreement — this quote was {QUOTE_STATUS[quote.status].label.toLowerCase()}. Reopen it as sent to
-                generate one.
-              </p>
-            ) : (
-              <>
-                <p className="mb-3 text-[0.8rem] leading-relaxed text-ink-600">
-                  {quote.status === "ACCEPTED"
-                    ? "This quote has no service agreement yet."
-                    : "Generated automatically when the quote is accepted. Need it for the proposal? Generate the draft now."}
+                </>
+              ) : quote.status === "DECLINED" || quote.status === "EXPIRED" ? (
+                <p className="text-[0.82rem] text-ink-500">
+                  No agreement — this quote was {QUOTE_STATUS[quote.status].label.toLowerCase()}. Reopen it as sent to
+                  generate one.
                 </p>
-                <ActionButton
-                  action={generateAgreement}
-                  fields={{ quoteId: quote.id }}
-                  variant={quote.status === "ACCEPTED" ? "primary" : "secondary"}
-                  pendingLabel="Generating"
-                >
-                  <FileSignature className={ICON} aria-hidden="true" />
-                  Generate service agreement
-                </ActionButton>
-              </>
-            )}
-          </Card>
+              ) : (
+                <>
+                  <p className="mb-3 text-[0.8rem] leading-relaxed text-ink-600">
+                    {quote.status === "ACCEPTED"
+                      ? "This quote has no service agreement yet."
+                      : "Generated automatically when the quote is accepted. Need it for the proposal? Generate the draft now."}
+                  </p>
+                  <ActionButton
+                    action={generateAgreement}
+                    fields={{ quoteId: quote.id }}
+                    variant={quote.status === "ACCEPTED" ? "primary" : "secondary"}
+                    pendingLabel="Generating"
+                  >
+                    <FileSignature className={ICON} aria-hidden="true" />
+                    Generate service agreement
+                  </ActionButton>
+                </>
+              )}
+            </Card>
+          )}
         </section>
 
         {/* The document itself — the only thing that prints. */}
@@ -394,26 +413,26 @@ export default async function QuotePage({ params }: Props) {
         <aside className="min-w-0 space-y-6 print:hidden xl:col-start-2 xl:row-start-2 xl:self-start">
           <Card>
             <CardHeader title="Linked records" />
-            {quote.lead || invoice || agreement ? (
+            {quote.lead || invoice || shownAgreement || (projectsOn && agreement?.project) || staged ? (
               <ul className="space-y-2">
                 {quote.lead && (
                   <LinkedRecord
-                    href={`/admin/crm/${quote.lead.id}`}
+                    href={clientHref(quote.lead.id)}
                     icon={Target}
-                    label={`Opportunity · ${LEAD_STATUS[quote.lead.status]?.label ?? quote.lead.status}`}
+                    label={`${crmOn ? "Opportunity" : "Client"} · ${LEAD_STATUS[quote.lead.status]?.label ?? quote.lead.status}`}
                     title={leadTitle(quote.lead)}
                     subtitle={quote.lead.companyName ? `${quote.lead.fullName} · ${quote.lead.companyName}` : quote.lead.fullName}
                   />
                 )}
-                {agreement && (
+                {shownAgreement && (
                   <LinkedRecord
-                    href={`/admin/billing/agreements/${agreement.id}`}
+                    href={`/admin/billing/agreements/${shownAgreement.id}`}
                     icon={FileSignature}
-                    label={`Service agreement · ${AGREEMENT_STATUS[agreement.status].label}`}
-                    title={agreement.number}
+                    label={`Service agreement · ${AGREEMENT_STATUS[shownAgreement.status].label}`}
+                    title={shownAgreement.number}
                   />
                 )}
-                {agreement?.project && (
+                {projectsOn && agreement?.project && (
                   <LinkedRecord
                     href={`/admin/projects/${agreement.project.id}`}
                     icon={FolderKanban}
@@ -441,7 +460,7 @@ export default async function QuotePage({ params }: Props) {
               </ul>
             ) : (
               <p className="text-[0.82rem] text-ink-500">
-                Not linked to a CRM opportunity.
+                {crmOn ? "Not linked to a CRM opportunity." : "Not linked to a client."}
                 {quote.status === "DRAFT" && " Edit the draft to link one."}
               </p>
             )}

@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { hiddenPathRedirect, loginReturnPath } from "@/lib/admin/modules";
 import { decrypt, SESSION_COOKIE } from "@/lib/admin/session";
 
 /**
@@ -19,9 +20,17 @@ export default async function proxy(req: NextRequest) {
 
   if (!isLogin && !(await decrypt(req.cookies.get(SESSION_COOKIE)?.value))) {
     const url = new URL("/admin/login", req.nextUrl);
-    if (pathname !== "/admin") url.searchParams.set("next", pathname);
+    // Back to the page asked for after signing in — including one client's
+    // row on the dashboard (?client=<id>, the new-enquiry email's link).
+    const back = loginReturnPath(pathname, req.nextUrl.searchParams);
+    if (back) url.searchParams.set("next", back);
     return NextResponse.redirect(url);
   }
+
+  // Switched-off modules (src/lib/admin/modules.ts) are kept in the code but
+  // not reachable: their pages send the visitor to the dashboard instead.
+  const redirectTo = isLogin ? null : hiddenPathRedirect(pathname);
+  if (redirectTo) return NextResponse.redirect(new URL(redirectTo, req.nextUrl));
 
   const res = NextResponse.next();
   // Nothing under /admin should ever be indexed or cached by a shared proxy.

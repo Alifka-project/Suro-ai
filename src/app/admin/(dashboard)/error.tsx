@@ -7,7 +7,7 @@ import { Button, EmptyState, LinkButton } from "@/components/admin/ui";
 
 /**
  * Fallback error boundary for every dashboard page without one of its own —
- * the Analytics overview and Account today — e.g. when the database is
+ * the client dashboard and Account today — e.g. when the database is
  * unreachable. It renders inside the dashboard layout, so the sidebar stays
  * put and every other page is still one click away. CRM, billing and projects
  * keep their own, more specific boundaries.
@@ -33,7 +33,7 @@ export default function DashboardError({
         description={
           <>
             Something went wrong on our side, often a brief problem reaching the database. Please try again, or
-            open another page from the menu.
+            go back to the dashboard.
             {error.digest && (
               <span className="mt-2 block font-mono text-[0.68rem] text-ink-600">Reference: {error.digest}</span>
             )}
@@ -47,7 +47,7 @@ export default function DashboardError({
             </Button>
             {pathname !== "/admin" && (
               <LinkButton href="/admin" variant="ghost" size="sm">
-                Back to overview
+                Back to dashboard
               </LinkButton>
             )}
           </div>

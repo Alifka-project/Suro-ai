@@ -1,5 +1,6 @@
 import { Sidebar } from "@/components/admin/Sidebar";
 import { requireAdmin } from "@/lib/admin/dal";
+import { moduleEnabled } from "@/lib/admin/modules";
 import { startOfBusinessDay } from "@/lib/admin/time";
 import { db } from "@/lib/db";
 
@@ -9,17 +10,22 @@ import { db } from "@/lib/db";
  * every page and Server Action repeats the check on its own.
  *
  * The sidebar badges are recounted whenever an action revalidates the /admin
- * layout (every CRM mutation does), so they track the pipeline closely.
+ * layout (every status change and billing action does), so they stay current.
+ * Only what the visible nav shows is counted: the overdue-activities badge
+ * belongs to the CRM, so it is skipped while the CRM is switched off.
  */
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const admin = await requireAdmin();
   const [newLeads, overdueActivities] = await Promise.all([
+    // Clients who filled in the form and haven't been contacted yet.
     db.lead.count({ where: { status: "NEW" } }),
     // Same rule as the Activities planner: open, due before today began on the
     // business clock, on an opportunity that is still in play.
-    db.activity.count({
-      where: { doneAt: null, dueDate: { lt: startOfBusinessDay() }, lead: { status: { not: "LOST" } } },
-    }),
+    moduleEnabled("crm")
+      ? db.activity.count({
+          where: { doneAt: null, dueDate: { lt: startOfBusinessDay() }, lead: { status: { not: "LOST" } } },
+        })
+      : Promise.resolve(0),
   ]);
 
   return (

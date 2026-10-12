@@ -4,15 +4,15 @@ import { EmptyState, LinkButton, PageHeader } from "@/components/admin/ui";
 import { requireAdmin } from "@/lib/admin/dal";
 import { formatMoney } from "@/lib/admin/money";
 import { formatBusinessDate } from "@/lib/admin/time";
-import { ChartCard } from "./_analytics/ChartCard";
-import { LeadsTrendChart, RevenueChart } from "./_analytics/charts";
-import { getOverviewData } from "./_analytics/data";
-import { businessYear } from "./_analytics/dates";
-import { Kpis } from "./_analytics/Kpis";
-import { ActiveProjects, AgreementsPanel, AttentionInvoices, OverdueFollowUps, RecentLeads } from "./_analytics/lists";
-import { MiniTable } from "./_analytics/MiniTable";
-import { PipelineBreakdown } from "./_analytics/PipelineBreakdown";
-import { ServicesBars } from "./_analytics/ServicesBars";
+import { ChartCard } from "../_analytics/ChartCard";
+import { LeadsTrendChart, RevenueChart } from "../_analytics/charts";
+import { getOverviewData } from "../_analytics/data";
+import { businessYear } from "../_analytics/dates";
+import { Kpis } from "../_analytics/Kpis";
+import { ActiveProjects, AgreementsPanel, AttentionInvoices, OverdueFollowUps, RecentLeads } from "../_analytics/lists";
+import { MiniTable } from "../_analytics/MiniTable";
+import { PipelineBreakdown } from "../_analytics/PipelineBreakdown";
+import { ServicesBars } from "../_analytics/ServicesBars";
 
 export const metadata: Metadata = { title: "Overview" };
 

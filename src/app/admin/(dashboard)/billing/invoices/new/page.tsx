@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/admin/ui";
 import { requireAdmin } from "@/lib/admin/dal";
+import { billingBackHref, clientHref, moduleEnabled } from "@/lib/admin/modules";
 import { DEFAULT_VAT_BPS, filsToInput } from "@/lib/admin/money";
 import { addDaysToDateInput, toDateInputValue } from "@/lib/admin/time";
 import { DocumentEditor } from "../../_components/document-editor";
@@ -24,7 +25,10 @@ export default async function NewInvoicePage({
 
   const sp = await searchParams;
   const leadParam = one(sp.leadId);
-  const projectParam = one(sp.projectId);
+  // While the projects module is switched off, a ?projectId= (only linked from
+  // project pages) is ignored: the invoice is not tied to a project.
+  const projectsOn = moduleEnabled("projects");
+  const projectParam = projectsOn ? one(sp.projectId) : undefined;
 
   const [leadFromParam, project] = await Promise.all([
     findLeadForPrefill(leadParam),
@@ -40,7 +44,7 @@ export default async function NewInvoicePage({
   const lead = projectLead ?? leadFromParam;
 
   const { leads, projects } = await getEditorOptions({
-    includeProjects: true,
+    includeProjects: projectsOn,
     ensureLeadIds: [lead?.id],
     ensureProjectIds: [project?.id],
   });
@@ -67,12 +71,15 @@ export default async function NewInvoicePage({
     projectId: project?.id ?? "",
   };
 
-  const backHref = project
-    ? `/admin/projects/${project.id}`
+  // Back to where the invoice was started from: the project, the client (their
+  // opportunity page, or their dashboard row while the CRM is off), otherwise
+  // the invoices list or dashboard.
+  const back = project
+    ? { href: `/admin/projects/${project.id}`, label: `Back to ${project.name}` }
     : lead
-      ? `/admin/crm/${lead.id}`
-      : "/admin/billing?tab=invoices";
-  const backLabel = project ? `Back to ${project.name}` : lead ? `Back to ${lead.fullName}` : "All invoices";
+      ? { href: clientHref(lead.id), label: `Back to ${lead.fullName}` }
+      : billingBackHref("invoices");
+  const leadWord = moduleEnabled("crm") ? "lead" : "client";
 
   const notices: string[] = [];
   if (projectParam && !project) {
@@ -81,18 +88,18 @@ export default async function NewInvoicePage({
   if (leadParam && !leadFromParam) {
     notices.push(
       projectLead
-        ? "The lead in this link could not be found, so the project's client was used instead."
-        : "The lead in this link could not be found, so it was not linked.",
+        ? `The ${leadWord} in this link could not be found, so the project's client was used instead.`
+        : `The ${leadWord} in this link could not be found, so it was not linked.`,
     );
   } else if (leadFromParam && projectLead && leadFromParam.id !== projectLead.id) {
     notices.push(
-      `The lead in this link is not the client of ${project?.name ?? "this project"}, so the project's client was used instead.`,
+      `The ${leadWord} in this link is not the client of ${project?.name ?? "this project"}, so the project's client was used instead.`,
     );
   }
 
   return (
     <>
-      <BackLink href={backHref}>{backLabel}</BackLink>
+      <BackLink href={back.href}>{back.label}</BackLink>
       <PageHeader
         eyebrow={`Billing · ${INVOICE_TITLE}`}
         title="New invoice"
@@ -106,7 +113,8 @@ export default async function NewInvoicePage({
       />
       {notices.length > 0 && (
         <Notice>
-          {notices.join(" ")} You can change the lead and project below.
+          {notices.join(" ")} You can change the {leadWord}
+          {projectsOn ? " and project" : ""} below.
         </Notice>
       )}
       <DocumentEditor
@@ -114,7 +122,7 @@ export default async function NewInvoicePage({
         initial={initial}
         leads={leads}
         projects={projects}
-        cancelHref={backHref}
+        cancelHref={back.href}
         submitLabel="Create invoice"
       />
     </>

@@ -248,11 +248,11 @@ export function LinkButton({
  * in globals.css.)
  */
 export const inputClass =
-  "h-10 w-full rounded-xl border border-ink-200 bg-white px-3 text-base text-ink-900 placeholder:text-ink-400 transition focus:border-azure-400 focus:outline-none focus:ring-4 focus:ring-azure-400/15 aria-[invalid=true]:border-red-400 sm:text-[0.88rem]";
+  "h-10 w-full rounded-xl border border-ink-200 bg-white px-3 text-base text-ink-900 placeholder:text-ink-550 transition focus:border-azure-400 focus:outline-none focus:ring-4 focus:ring-azure-400/15 aria-[invalid=true]:border-red-400 sm:text-[0.88rem]";
 
 /** Multi-line counterpart of inputClass (auto height, same focus treatment). */
 export const textareaClass =
-  "w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-base leading-relaxed text-ink-900 placeholder:text-ink-400 transition focus:border-azure-400 focus:outline-none focus:ring-4 focus:ring-azure-400/15 aria-[invalid=true]:border-red-400 sm:text-[0.88rem]";
+  "w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-base leading-relaxed text-ink-900 placeholder:text-ink-550 transition focus:border-azure-400 focus:outline-none focus:ring-4 focus:ring-azure-400/15 aria-[invalid=true]:border-red-400 sm:text-[0.88rem]";
 
 /**
  * Label + control + message. When `htmlFor` is set, the message gets a stable

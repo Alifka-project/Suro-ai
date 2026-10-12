@@ -6,6 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
   LayoutDashboard,
+  ChartNoAxesCombined,
   Users,
   Receipt,
   FolderKanban,
@@ -17,6 +18,7 @@ import {
 } from "lucide-react";
 import { logout } from "@/app/admin/actions";
 import { initials } from "@/lib/admin/labels";
+import { hiddenPathRedirect, moduleEnabled, type AdminModule } from "@/lib/admin/modules";
 import { cn } from "./ui";
 
 /** True on `href` itself and on every route nested under it. */
@@ -33,6 +35,8 @@ type NavChild = {
   /** Billing's list is one page with a ?tab= switch, so matching needs the tab too. */
   match: (path: string, tab: string | null) => boolean;
   badge?: "overdueActivities";
+  /** Shown only while this module is switched on (src/lib/admin/modules.ts). */
+  module?: AdminModule;
 };
 
 type NavItem = {
@@ -44,21 +48,35 @@ type NavItem = {
   exact?: boolean;
   badge?: "newLeads";
   children?: NavChild[];
+  /** Shown only while one of these modules is switched on. Always shown without it. */
+  modules?: AdminModule[];
 };
 
 /*
- * Every module is one click away: the sections, plus their sub-pages
- * (Odoo-style CRM tabs, the three billing documents). A sub-link stays active
- * on the detail and edit pages beneath it, e.g. /admin/crm/<id> under Leads.
+ * Every section the admin has. Modules switched off in src/lib/admin/modules.ts
+ * keep their entries here but are left out of the rendered nav, so turning a
+ * module back on brings its links back with nothing else to change. With the
+ * current flags the nav is the one client dashboard.
+ *
+ * A sub-link stays active on the detail and edit pages beneath it, e.g.
+ * /admin/crm/<id> under Leads.
  */
 const NAV: NavItem[] = [
-  { href: "/admin", label: "Analytics", icon: LayoutDashboard, section: "/admin", exact: true },
+  // New enquiries are counted here: the dashboard's client table is where they land.
+  { href: "/admin", label: "Dashboard", icon: LayoutDashboard, section: "/admin", exact: true, badge: "newLeads" },
+  {
+    href: "/admin/analytics",
+    label: "Analytics",
+    icon: ChartNoAxesCombined,
+    section: "/admin/analytics",
+    modules: ["analytics"],
+  },
   {
     href: "/admin/crm/pipeline",
     label: "CRM",
     icon: Users,
     section: "/admin/crm",
-    badge: "newLeads",
+    modules: ["crm"],
     children: [
       { href: "/admin/crm/pipeline", label: "Pipeline", match: (p) => within(p, "/admin/crm/pipeline") },
       {
@@ -79,16 +97,19 @@ const NAV: NavItem[] = [
     label: "Billing",
     icon: Receipt,
     section: "/admin/billing",
+    modules: ["billing", "agreements"],
     children: [
       {
         href: "/admin/billing?tab=quotes",
         label: "Quotations",
         match: (p, tab) => within(p, "/admin/billing/quotes") || (p === "/admin/billing" && tab === "quotes"),
+        module: "billing",
       },
       {
         href: "/admin/billing/agreements",
         label: "Agreements",
         match: (p, tab) => within(p, "/admin/billing/agreements") || (p === "/admin/billing" && tab === "agreements"),
+        module: "agreements",
       },
       {
         // Invoices is the billing page's default tab.
@@ -96,25 +117,43 @@ const NAV: NavItem[] = [
         label: "Invoices",
         match: (p, tab) =>
           within(p, "/admin/billing/invoices") || (p === "/admin/billing" && tab !== "quotes" && tab !== "agreements"),
+        module: "billing",
       },
     ],
   },
-  { href: "/admin/projects", label: "Projects", icon: FolderKanban, section: "/admin/projects" },
+  { href: "/admin/projects", label: "Projects", icon: FolderKanban, section: "/admin/projects", modules: ["projects"] },
 ];
+
+/**
+ * The nav as it renders with the current module flags. A section keeps its
+ * own link while that page is reachable (so turning a module back on restores
+ * it exactly); when the page itself is switched off, e.g. the billing overview
+ * with only agreements on, the section opens its first remaining sub-link.
+ */
+const VISIBLE_NAV: NavItem[] = NAV.flatMap((item) => {
+  if (item.modules && !item.modules.some(moduleEnabled)) return [];
+  if (!item.children) return [item];
+  const children = item.children.filter((child) => !child.module || moduleEnabled(child.module));
+  if (children.length === 0) return [];
+  const ownPageShown = hiddenPathRedirect(item.href.split("?")[0]) === null;
+  return [{ ...item, href: ownPageShown ? item.href : children[0].href, children }];
+});
+
+const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
 /** Count pill. The number is spelled out for screen readers, never carried by colour alone. */
 function CountBadge({ count, kind }: { count: number; kind: "new" | "overdue" }) {
+  const text = kind === "new" ? plural(count, "new enquiry", "new enquiries") : `${count} overdue`;
   return (
     <span
-      title={`${count} ${kind}`}
+      title={text}
       className={cn(
         "ml-auto rounded-full px-2 py-0.5 text-[0.68rem] font-bold tabular-nums",
         kind === "new" ? "bg-linear-to-r from-azure-500 to-aqua-500 text-white" : "bg-red-100 text-red-700",
       )}
     >
-      <span className="sr-only">, </span>
-      {count}
-      <span className="sr-only"> {kind}</span>
+      <span className="sr-only">, {text}</span>
+      <span aria-hidden="true">{count}</span>
     </span>
   );
 }
@@ -190,7 +229,7 @@ export function Sidebar({
   const accountActive = within(pathname, "/admin/account");
 
   const nav = (
-    <nav aria-label="Dashboard" className="flex h-full flex-col">
+    <nav aria-label="Admin" className="flex h-full flex-col">
       <Link href="/admin" className="flex shrink-0 items-center gap-2.5 px-3 py-4">
         <Image src="/brand/suloai-mark.png" alt="" width={226} height={240} className="h-8 w-auto" />
         <span className="font-display text-[1.05rem] font-bold tracking-[0.02em] text-ink-900">
@@ -204,7 +243,7 @@ export function Sidebar({
       {/* Scrolls on its own when a short screen can't fit every link, so the
           account block below stays reachable. */}
       <ul className="mt-2 min-h-0 flex-1 space-y-1 overflow-y-auto px-2 pb-3 pt-2">
-        {NAV.map((item) => {
+        {VISIBLE_NAV.map((item) => {
           const { href, label, icon: Icon, badge, children } = item;
           const active = inSection(item);
           // A section with sub-pages marks the sub-link as the current page;
@@ -341,8 +380,8 @@ export function Sidebar({
           aria-label={
             newLeads + overdueActivities > 0
               ? `Open navigation (${[
-                  newLeads > 0 && `${newLeads} new ${newLeads === 1 ? "lead" : "leads"}`,
-                  overdueActivities > 0 && `${overdueActivities} overdue ${overdueActivities === 1 ? "activity" : "activities"}`,
+                  newLeads > 0 && plural(newLeads, "new enquiry", "new enquiries"),
+                  overdueActivities > 0 && plural(overdueActivities, "overdue activity", "overdue activities"),
                 ]
                   .filter(Boolean)
                   .join(", ")})`

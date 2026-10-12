@@ -77,6 +77,8 @@ function clientIp(h: Headers): string {
  */
 function safeNext(raw: FormDataEntryValue | null): string {
   const next = typeof raw === "string" ? raw : "";
+  // One client's row on the dashboard (the new-enquiry email links there).
+  if (/^\/admin\?client=[A-Za-z0-9_-]{1,64}$/.test(next)) return next;
   return /^\/admin(\/[A-Za-z0-9\-_/]*)?$/.test(next) && next !== "/admin/login" ? next : "/admin";
 }
 

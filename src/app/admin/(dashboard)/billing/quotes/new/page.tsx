@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/admin/ui";
 import { requireAdmin } from "@/lib/admin/dal";
+import { billingBackHref, clientHref, moduleEnabled } from "@/lib/admin/modules";
 import { DEFAULT_VAT_BPS, filsToInput } from "@/lib/admin/money";
 import { addDaysToDateInput, toDateInputValue } from "@/lib/admin/time";
 import { DocumentEditor } from "../../_components/document-editor";
@@ -33,6 +34,9 @@ export default async function NewQuotePage({ searchParams }: { searchParams: Pro
     : [{ description: "", quantity: "1", unitPrice: "" }];
 
   const today = toDateInputValue(new Date());
+  // Back to the client this quote is for (their opportunity page, or their row
+  // on the dashboard while the CRM is off), otherwise the quotes list or dashboard.
+  const back = lead ? { href: clientHref(lead.id), label: `Back to ${lead.fullName}` } : billingBackHref("quotes");
   const initial: EditorInitial = {
     clientName: lead?.fullName ?? "",
     clientEmail: lead?.email ?? "",
@@ -48,9 +52,7 @@ export default async function NewQuotePage({ searchParams }: { searchParams: Pro
 
   return (
     <>
-      <BackLink href={lead ? `/admin/crm/${lead.id}` : "/admin/billing?tab=quotes"}>
-        {lead ? `Back to ${lead.fullName}` : "All quotes"}
-      </BackLink>
+      <BackLink href={back.href}>{back.label}</BackLink>
       <PageHeader
         eyebrow="Billing · Quotation"
         title="New quote"
@@ -61,13 +63,17 @@ export default async function NewQuotePage({ searchParams }: { searchParams: Pro
         }
       />
       {leadParam && !lead && (
-        <Notice>The lead in this link could not be found, so nothing was prefilled. You can pick a lead below.</Notice>
+        <Notice>
+          {moduleEnabled("crm")
+            ? "The lead in this link could not be found, so nothing was prefilled. You can pick a lead below."
+            : "The client in this link could not be found, so nothing was prefilled. You can pick a client below."}
+        </Notice>
       )}
       <DocumentEditor
         kind="quote"
         initial={initial}
         leads={leads}
-        cancelHref={lead ? `/admin/crm/${lead.id}` : "/admin/billing?tab=quotes"}
+        cancelHref={back.href}
         submitLabel="Create quote"
       />
     </>

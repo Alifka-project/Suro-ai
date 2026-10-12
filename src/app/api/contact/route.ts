@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { contactSchema, type ContactInput } from "@/lib/contact-schema";
 import { sortOrderAtTop } from "@/lib/admin/deals";
+import { clientHref } from "@/lib/admin/modules";
 import { logLeadEvent } from "@/lib/admin/timeline";
 import { db } from "@/lib/db";
 
@@ -108,7 +109,7 @@ function buildEmail(
             ? `<p style="margin:22px 0 0;color:#b45309;font:500 12px/1.5 -apple-system,Segoe UI,sans-serif">Heads-up: this lead could not be saved to the dashboard database, so it only exists in this email.</p>`
             : dashboardUrl
             ? `<div style="margin-top:22px">
-          <a href="${escapeHtml(dashboardUrl)}" style="display:inline-block;background:linear-gradient(100deg,#0766A3,#3686D5 45%,#41B0CC);color:#fff;text-decoration:none;font:600 14px/1 -apple-system,Segoe UI,sans-serif;padding:13px 20px;border-radius:12px">Open lead in dashboard &rarr;</a>
+          <a href="${escapeHtml(dashboardUrl)}" style="display:inline-block;background:linear-gradient(100deg,#0766A3,#3686D5 45%,#41B0CC);color:#fff;text-decoration:none;font:600 14px/1 -apple-system,Segoe UI,sans-serif;padding:13px 20px;border-radius:12px">Open client in dashboard &rarr;</a>
         </div>`
             : ""
         }
@@ -210,7 +211,8 @@ export async function POST(request: Request) {
   }
 
   const appUrl = (process.env.APP_URL ?? "").replace(/\/$/, "");
-  const dashboardUrl = leadId && appUrl ? `${appUrl}/admin/crm/${leadId}` : null;
+  // The client's row on the dashboard (or their CRM page while the CRM is on).
+  const dashboardUrl = leadId && appUrl ? `${appUrl}${clientHref(leadId)}` : null;
 
   const apiKey = process.env.RESEND_API_KEY;
   const to = process.env.CONTACT_TO_EMAIL;

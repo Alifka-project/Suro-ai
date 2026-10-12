@@ -20,6 +20,7 @@ import { z } from "zod";
 import { Prisma, type AgreementStatus, type QuoteStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin/dal";
+import { moduleEnabled } from "@/lib/admin/modules";
 import {
   AGREEMENT_DEFAULTS,
   AGREEMENT_STATUS,
@@ -117,6 +118,9 @@ const GENERATABLE: readonly QuoteStatus[] = ["DRAFT", "SENT", "ACCEPTED"];
 /** Manual generation, for a quote whose deal isn't won yet (accepting a quote does this on its own). */
 export async function generateAgreement(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const admin = await requireAdmin();
+  // The module is switched off (src/lib/admin/modules.ts): its button isn't
+  // shown, and a direct POST mustn't create agreements nobody can see.
+  if (!moduleEnabled("agreements")) return { error: "Service agreements are switched off." };
 
   const parsed = idSchema.safeParse(field(formData, "quoteId"));
   if (!parsed.success) return { error: "That quote could not be found." };

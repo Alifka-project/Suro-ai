@@ -21,7 +21,8 @@ import { INSTALLMENT_LABEL } from "@/lib/admin/agreement-terms";
 import { AGREEMENT_TOO_LARGE_MESSAGE, AgreementAmountTooLargeError, onQuoteAccepted } from "@/lib/admin/deals";
 import { DEFAULT_CURRENCY, documentTotals, formatMoney } from "@/lib/admin/money";
 import { nextDocumentNumber } from "@/lib/admin/numbering";
-import { INVOICE_STATUS, QUOTE_STATUS } from "@/lib/admin/labels";
+import { INVOICE_STATUS, LEAD_STATUS, QUOTE_STATUS } from "@/lib/admin/labels";
+import { billingBackHref, clientHref, moduleEnabled } from "@/lib/admin/modules";
 import { addDaysToDateInput, dateInputToDate, toDateInputValue } from "@/lib/admin/time";
 import { logLeadEvent } from "@/lib/admin/timeline";
 import {
@@ -223,6 +224,13 @@ async function leadExists(id: string) {
   return (await db.lead.count({ where: { id } })) > 0;
 }
 
+/** The picked client was deleted meanwhile. CRM wording only while the CRM is on. */
+function missingLeadError(): EditorState {
+  return moduleEnabled("crm")
+    ? { error: "The linked lead no longer exists.", fieldErrors: { leadId: "Pick another lead or none" } }
+    : { error: "The linked client no longer exists.", fieldErrors: { leadId: "Pick another client or none" } };
+}
+
 class StaleDocumentError extends Error {}
 /** The quote is billed in stages through its agreement, so it can't be billed in full too. */
 class StagedBillingError extends Error {}
@@ -289,7 +297,7 @@ export async function saveQuote(_prev: EditorState, formData: FormData): Promise
 
   try {
     if (d.leadId && !(await leadExists(d.leadId))) {
-      return { error: "The linked lead no longer exists.", fieldErrors: { leadId: "Pick another lead or none" } };
+      return missingLeadError();
     }
 
     if (d.id) {
@@ -302,10 +310,17 @@ export async function saveQuote(_prev: EditorState, formData: FormData): Promise
       // The agreement (and any invoices from it) belong to the quote's
       // opportunity; moving only the quote would leave them on the old one.
       if (existing.agreement && (existing.leadId ?? null) !== (d.leadId ?? null)) {
-        return {
-          error: `Service agreement ${existing.agreement.number} is linked to this quote's current opportunity. Delete the draft agreement first, then change the lead.`,
-          fieldErrors: { leadId: "Can't change while an agreement is linked" },
-        };
+        // With agreements switched off their pages are hidden, so deleting
+        // the draft agreement is not an option to offer.
+        return moduleEnabled("agreements")
+          ? {
+              error: `Service agreement ${existing.agreement.number} is linked to this quote's current opportunity. Delete the draft agreement first, then change the lead.`,
+              fieldErrors: { leadId: "Can't change while an agreement is linked" },
+            }
+          : {
+              error: `This quote has service agreement ${existing.agreement.number} on record for its current client, so the client can't be changed. Create a new quotation for the other client instead.`,
+              fieldErrors: { leadId: "Can't change: this quote has a service agreement on record" },
+            };
       }
       const agreement = existing.agreement;
       if (agreement && PRICE_LOCKING_AGREEMENT.includes(agreement.status)) {
@@ -363,7 +378,7 @@ export async function saveInvoice(_prev: EditorState, formData: FormData): Promi
 
   try {
     if (leadId && !(await leadExists(leadId))) {
-      return { error: "The linked lead no longer exists.", fieldErrors: { leadId: "Pick another lead or none" } };
+      return missingLeadError();
     }
     if (d.projectId) {
       const project = await db.project.findUnique({ where: { id: d.projectId }, select: { leadId: true } });
@@ -450,6 +465,16 @@ function quoteStatusEvent(number: string, from: QuoteStatus, to: QuoteStatus): s
 
 /** Non-void invoices billing one stage of an agreement's payment schedule. */
 const STAGE_INVOICES = { installment: { not: null }, status: { not: "VOID" } } satisfies Prisma.InvoiceWhereInput;
+
+/**
+ * How a notice names the client a quote belongs to, and where its link goes:
+ * the opportunity page with the CRM on, otherwise the client's dashboard row.
+ */
+function clientNotice(leadId: string) {
+  return moduleEnabled("crm")
+    ? { noun: "opportunity", link: { label: "Opportunity", href: clientHref(leadId) } }
+    : { noun: "client", link: { label: "Client", href: clientHref(leadId) } };
+}
 
 const stagedLockMessage = (agreementNumber: string) =>
   `This quote is being billed in stages through service agreement ${agreementNumber}, so it can't be un-accepted, declined or expired.`;
@@ -539,19 +564,23 @@ export async function setQuoteStatus(_prev: ActionState, formData: FormData): Pr
     }
 
     revalidateAdmin();
-    const generated = accepted.agreement;
+    // With the agreements module off nothing is generated, and an agreement
+    // from before is neither mentioned nor linked (its pages are switched off).
+    const generated = moduleEnabled("agreements") ? accepted.agreement : null;
+    const client = quote.leadId ? clientNotice(quote.leadId) : null;
     const parts = [`Quotation ${quote.number} accepted.`];
     if (generated) {
       parts.push(
         generated.created ? `Service agreement ${generated.number} generated` : `Service agreement ${generated.number} linked`,
       );
     }
-    if (accepted.leadWon) parts.push("opportunity marked Won");
+    if (accepted.leadWon && client) parts.push(`${client.noun} marked ${LEAD_STATUS.WON.label}`);
+    const rest = parts.slice(1).join(" · ");
     return {
-      notice: parts.length > 1 ? `${parts[0]} ${parts.slice(1).join(" · ")}.` : parts[0],
+      notice: rest ? `${parts[0]} ${rest.charAt(0).toUpperCase()}${rest.slice(1)}.` : parts[0],
       links: [
         ...(generated ? [{ label: `Open ${generated.number}`, href: `/admin/billing/agreements/${generated.id}` }] : []),
-        ...(quote.leadId ? [{ label: "Opportunity", href: `/admin/crm/${quote.leadId}` }] : []),
+        ...(client ? [client.link] : []),
       ],
     };
   }
@@ -593,7 +622,7 @@ export async function setQuoteStatus(_prev: ActionState, formData: FormData): Pr
   const still: string[] = [];
   const fixes: string[] = [];
   const links: NoticeLink[] = [];
-  if (agreement && (agreement.status === "DRAFT" || agreement.status === "SENT")) {
+  if (moduleEnabled("agreements") && agreement && (agreement.status === "DRAFT" || agreement.status === "SENT")) {
     still.push(
       `service agreement ${agreement.number} is still ${agreement.status === "DRAFT" ? "a draft" : "out for signature"}`,
     );
@@ -601,9 +630,12 @@ export async function setQuoteStatus(_prev: ActionState, formData: FormData): Pr
     links.push({ label: `Open ${agreement.number}`, href: `/admin/billing/agreements/${agreement.id}` });
   }
   if (leadStillWon && leadId) {
-    still.push("the opportunity is still marked Won");
-    fixes.push("move the opportunity back to an open stage");
-    links.push({ label: "Opportunity", href: `/admin/crm/${leadId}` });
+    const client = clientNotice(leadId);
+    still.push(`the ${client.noun} is still marked ${LEAD_STATUS.WON.label}`);
+    fixes.push(
+      moduleEnabled("crm") ? "move the opportunity back to an open stage" : "change the client's status on the dashboard",
+    );
+    links.push(client.link);
   }
   if (still.length === 0) return {};
   const what = status === "SENT" ? "Acceptance undone" : `Quotation ${QUOTE_STATUS[status].label.toLowerCase()}`;
@@ -840,7 +872,7 @@ export async function deleteDraftQuote(_prev: ActionState, formData: FormData): 
   }
 
   revalidateAdmin();
-  redirect("/admin/billing?tab=quotes");
+  redirect(billingBackHref("quotes").href);
 }
 
 export async function deleteDraftInvoice(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -858,5 +890,5 @@ export async function deleteDraftInvoice(_prev: ActionState, formData: FormData)
   if (deleted.count === 0) return { error: "This invoice is no longer a draft, so it was not deleted." };
 
   revalidateAdmin();
-  redirect("/admin/billing?tab=invoices");
+  redirect(billingBackHref("invoices").href);
 }

@@ -16,6 +16,7 @@ import {
 } from "@/components/admin/ui";
 import { DEFAULT_CURRENCY, documentTotals, formatMoney, formatVat, lineTotalFils } from "@/lib/admin/money";
 import { IS_VAT_REGISTERED } from "@/lib/admin/business";
+import { moduleEnabled } from "@/lib/admin/modules";
 import { saveInvoice, saveQuote } from "../actions";
 import { MAX_LINE_ITEMS, parseQuantity, parseUnitPriceFils, parseVatPercentToBps } from "../_lib/parse";
 import type {
@@ -70,6 +71,11 @@ export function DocumentEditor({
 }) {
   const isQuote = kind === "quote";
   const [state, formAction, pending] = useActionState(isQuote ? saveQuote : saveInvoice, undefined);
+  // Switched-off modules (src/lib/admin/modules.ts): without projects there is
+  // no project picker (an invoice keeps whatever link it already has), and
+  // without the CRM the linked lead is simply "the client".
+  const showProjects = !isQuote && moduleEnabled("projects");
+  const crmOn = moduleEnabled("crm");
 
   const [leadId, setLeadId] = useState(initial.leadId);
   const [projectId, setProjectId] = useState(initial.projectId);
@@ -203,9 +209,11 @@ export function DocumentEditor({
 
   const leadMsg = message(
     "leadId",
-    selectedProject?.leadId
+    showProjects && selectedProject?.leadId
       ? "Set by the project. Picking another lead unlinks the project."
-      : "Picking a lead fills in the client details.",
+      : crmOn
+        ? "Picking a lead fills in the client details."
+        : `Picking a client fills in their details and shows this ${isQuote ? "quotation" : "invoice"} in their row on the dashboard.`,
   );
   const projectMsg = clearedProject
     ? message("projectId", `${clearedProject} was unlinked: it belongs to a different client.`, "text-amber-700")
@@ -253,14 +261,14 @@ export function DocumentEditor({
         <Card>
           <CardHeader
             title="Client"
-            subtitle="Printed in the bill-to block. Saved as a snapshot, so later CRM edits don't change this document."
+            subtitle={`Printed in the bill-to block. Saved as a snapshot, so later ${crmOn ? "CRM edits" : "changes to the client"} don't change this document.`}
           />
           <div className="grid gap-4 sm:grid-cols-2">
             <Field
-              label="Linked lead (CRM)"
+              label={crmOn ? "Linked lead (CRM)" : "Linked client"}
               htmlFor="leadId"
               hint={leadMsg.hint}
-              className={isQuote ? "sm:col-span-2" : undefined}
+              className={showProjects ? undefined : "sm:col-span-2"}
             >
               <select
                 id="leadId"
@@ -271,7 +279,7 @@ export function DocumentEditor({
                 aria-invalid={fieldErrors.leadId ? true : undefined}
                 aria-describedby={leadMsg.describedBy}
               >
-                <option value="">Not linked to a lead</option>
+                <option value="">{crmOn ? "Not linked to a lead" : "Not linked to a client"}</option>
                 {leads.map((l) => (
                   <option key={l.id} value={l.id}>
                     {leadOptionLabel(l)}
@@ -280,7 +288,10 @@ export function DocumentEditor({
               </select>
             </Field>
 
-            {!isQuote && (
+            {/* Hidden picker: the invoice keeps its current project link (none for
+                a new one), cleared by applyLead if it belongs to another client. */}
+            {!isQuote && !showProjects && <input type="hidden" name="projectId" value={projectId} />}
+            {showProjects && (
               <Field label="Project" htmlFor="projectId" hint={projectMsg.hint}>
                 <select
                   id="projectId"
@@ -589,7 +600,7 @@ export function DocumentEditor({
 
             {estimateFils !== null && (
               <p className="mt-3 rounded-lg bg-haze px-3 py-2 text-[0.75rem] text-ink-600">
-                CRM estimate for this lead:{" "}
+                {crmOn ? "CRM estimate for this lead:" : "Estimate for this client:"}{" "}
                 <span className="font-semibold tabular-nums text-ink-800">{formatMoney(estimateFils)}</span>
               </p>
             )}

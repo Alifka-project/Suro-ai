@@ -17,6 +17,7 @@ import { leadTitle } from "./pipeline";
 import { addDaysToDateInput, dateInputToDate, toDateInputValue } from "./time";
 import { logLeadEvent } from "./timeline";
 import { NOT_SURE_OPTION } from "@/lib/packages";
+import { moduleEnabled } from "./modules";
 
 /*
  * Deal automation — how a won opportunity turns into paperwork.
@@ -31,6 +32,9 @@ import { NOT_SURE_OPTION } from "@/lib/packages";
  *   generates the agreement from it. With no quotation at all but an expected
  *   revenue, it first generates a DRAFT quotation from the opportunity, so
  *   the quote and the agreement arrive together for review.
+ * - With the agreements module switched off (src/lib/admin/modules.ts),
+ *   neither path generates an agreement; one that already exists is still
+ *   kept in step with an accepted quotation's price.
  * - A won deal's expected revenue comes from its quotation when none was
  *   entered, so won revenue never counts a signed deal as AED 0.
  * - Every step is written to the opportunity's timeline.
@@ -279,7 +283,11 @@ export async function onQuoteAccepted(
   const leadStatus = quote.leadId ? await lockLead(tx, quote.leadId) : null;
 
   await logLeadEvent(quote.leadId, `Quotation ${quote.number} accepted.`, actor?.id ?? null, tx);
-  const agreement = await ensureAgreementForQuote(tx, quote.id, actor);
+  // With the agreements module switched off, acceptance only closes the deal;
+  // an agreement that already exists is still kept in step with the price.
+  const agreement = moduleEnabled("agreements")
+    ? await ensureAgreementForQuote(tx, quote.id, actor)
+    : await existingAgreement(tx, quote.id);
   if (agreement && !agreement.created) await syncAgreementFromQuote(tx, agreement.id);
 
   let leadWon = false;
@@ -288,6 +296,11 @@ export async function onQuoteAccepted(
     await adoptQuoteValue(tx, quote.leadId, quote, actor);
   }
   return { agreement, leadWon };
+}
+
+async function existingAgreement(tx: Tx, quoteId: string): Promise<GeneratedAgreement | null> {
+  const found = await tx.agreement.findUnique({ where: { quoteId }, select: { id: true, number: true } });
+  return found ? { ...found, created: false } : null;
 }
 
 export class LeadNotFoundError extends Error {
@@ -307,6 +320,7 @@ export type WonResult = {
   /** The lead was already Won before this call (documents may still have been generated). */
   alreadyWon: boolean;
   quote: { id: string; number: string; created: boolean; accepted: boolean } | null;
+  /** The deal's agreement; always null while the agreements module is off (its pages are hidden). */
   agreement: GeneratedAgreement | null;
   /** One sentence for a toast / flash message. */
   message: string;
@@ -417,10 +431,26 @@ export async function markLeadWon(leadId: string, actor: Actor): Promise<WonResu
       }
 
       if (quote && !quote.created) await adoptQuoteValue(tx, lead.id, quote, actor);
-      const agreement = quote ? await ensureAgreementForQuote(tx, quote.id, actor) : null;
+      // Like onQuoteAccepted: with the agreements module off, winning only
+      // closes the deal; an agreement that already exists still follows the
+      // quotation it was just accepted from.
+      const agreementsOn = moduleEnabled("agreements");
+      const agreement = !quote
+        ? null
+        : agreementsOn
+          ? await ensureAgreementForQuote(tx, quote.id, actor)
+          : await existingAgreement(tx, quote.id);
       if (agreement && !agreement.created && quote?.accepted) await syncAgreementFromQuote(tx, agreement.id);
 
       let message: string;
+      if (!agreementsOn) {
+        if (!quote) message = "Deal won.";
+        else if (quote.created)
+          message = `Deal won. Draft quotation ${quote.number} generated from the expected revenue — review it before sending.`;
+        else if (quote.accepted) message = `Deal won. Quotation ${quote.number} marked accepted.`;
+        else message = `Deal won. Quotation ${quote.number} is linked.`;
+        return { alreadyWon, quote, agreement: null, message };
+      }
       if (!quote) {
         message = "Deal won. Add a quotation (or an expected revenue) to generate the service agreement.";
       } else if (agreement?.created) {

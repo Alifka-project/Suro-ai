@@ -8,13 +8,19 @@ export type Tone = "neutral" | "blue" | "aqua" | "mint" | "lilac" | "blush" | "a
 
 type StatusMeta = { label: string; tone: Tone };
 
-export const LEAD_STATUS: Record<string, StatusMeta> = {
-  NEW: { label: "New", tone: "blue" },
-  CONTACTED: { label: "Contacted", tone: "aqua" },
-  QUALIFIED: { label: "Qualified", tone: "lilac" },
-  PROPOSAL: { label: "Proposal", tone: "amber" },
-  WON: { label: "Won", tone: "mint" },
-  LOST: { label: "Lost", tone: "neutral" },
+/**
+ * Client (lead) status, as the team names it. The stored enum keeps its
+ * original values so no data migration is needed: CONTACTED is shown as
+ * "Prospect", QUALIFIED as "Follow-up", PROPOSAL as "Quotation sent", WON as
+ * "Goal" (deal closed) and LOST as "Cancel".
+ */
+export const LEAD_STATUS: Record<string, StatusMeta & { hint: string }> = {
+  NEW: { label: "New", tone: "blue", hint: "Enquiry received, not contacted yet" },
+  CONTACTED: { label: "Prospect", tone: "aqua", hint: "Contacted and interested" },
+  QUALIFIED: { label: "Follow-up", tone: "amber", hint: "Waiting on the next step" },
+  PROPOSAL: { label: "Quotation sent", tone: "lilac", hint: "Quotation with the client" },
+  WON: { label: "Goal", tone: "mint", hint: "Deal closed" },
+  LOST: { label: "Cancel", tone: "neutral", hint: "Not going ahead" },
 };
 
 export const QUOTE_STATUS: Record<string, StatusMeta> = {

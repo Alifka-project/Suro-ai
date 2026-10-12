@@ -30,7 +30,7 @@ export default async function LoginPage({
           <h1 className="mt-4 font-display text-[1.5rem] font-bold text-ink-900">
             SULO<span className="text-gradient">AI</span> Admin
           </h1>
-          <p className="mt-1 text-[0.85rem] text-ink-500">Sign in to manage leads, billing and projects.</p>
+          <p className="mt-1 text-[0.85rem] text-ink-500">Sign in to the SULOAI client dashboard.</p>
         </div>
 
         <div className="rounded-3xl border border-white/80 bg-white/80 p-6 shadow-[0_24px_60px_-28px_rgb(7_38_60_/_0.35)] backdrop-blur-xl">

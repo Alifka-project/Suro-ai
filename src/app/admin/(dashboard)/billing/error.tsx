@@ -3,6 +3,12 @@
 import { useEffect } from "react";
 import { RotateCw, TriangleAlert } from "lucide-react";
 import { Button, EmptyState, LinkButton } from "@/components/admin/ui";
+import { billingBackHref, moduleEnabled } from "@/lib/admin/modules";
+
+/** The billing overview while billing is switched on, otherwise the dashboard. */
+const BACK = moduleEnabled("billing")
+  ? { href: "/admin/billing", label: "Back to billing" }
+  : billingBackHref("invoices");
 
 /**
  * Error boundary for every billing screen (list, documents, editors), e.g. when
@@ -39,8 +45,8 @@ export default function BillingError({
               <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
               Try again
             </Button>
-            <LinkButton href="/admin/billing" variant="ghost" size="sm">
-              Back to billing
+            <LinkButton href={BACK.href} variant="ghost" size="sm">
+              {BACK.label}
             </LinkButton>
           </div>
         }

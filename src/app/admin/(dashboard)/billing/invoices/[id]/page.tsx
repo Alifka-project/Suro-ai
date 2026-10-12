@@ -21,6 +21,7 @@ import { leadTitle } from "@/lib/admin/pipeline";
 import { effectiveInvoiceStatus } from "@/lib/admin/invoices";
 import { documentTotals, formatMoney, formatVat } from "@/lib/admin/money";
 import { INVOICE_STATUS, timeAgo } from "@/lib/admin/labels";
+import { billingBackHref, clientHref, moduleEnabled } from "@/lib/admin/modules";
 import { calendarDaysBetween, formatBusinessDate, formatBusinessDateTime } from "@/lib/admin/time";
 import { deleteDraftInvoice, setInvoiceStatus } from "../../actions";
 import { ActionButton } from "../../_components/action-button";
@@ -59,6 +60,14 @@ export default async function InvoicePage({ params }: Props) {
   const allowed = INVOICE_TRANSITIONS[invoice.status];
   const can = (s: InvoiceStatus) => allowed.includes(s);
   const statusFields = (next: InvoiceStatus) => ({ id: invoice.id, status: next });
+
+  // Switched-off modules (src/lib/admin/modules.ts) keep their data, but their
+  // pages are never linked from here.
+  const agreementsOn = moduleEnabled("agreements");
+  const projectsOn = moduleEnabled("projects");
+  const crmOn = moduleEnabled("crm");
+  const back = billingBackHref("invoices");
+  const shownProject = projectsOn ? invoice.project : null;
 
   // A stage of a service agreement's payment schedule: "Deposit (50%) of SA-2026-0001".
   const agreement = invoice.agreement;
@@ -121,7 +130,7 @@ export default async function InvoicePage({ params }: Props) {
   return (
     <>
       <div className="print:hidden">
-        <BackLink href="/admin/billing?tab=invoices">All invoices</BackLink>
+        <BackLink href={back.href}>{back.label}</BackLink>
         <PageHeader
           eyebrow={INVOICE_TITLE}
           title={invoice.number}
@@ -135,12 +144,18 @@ export default async function InvoicePage({ params }: Props) {
               {agreement && (
                 <span>
                   ·{" "}
-                  <Link
-                    href={`/admin/billing/agreements/${agreement.id}#payment-schedule`}
-                    className="font-medium text-abyss-600 hover:underline"
-                  >
-                    {stage ? `${stage} of ${agreement.number}` : agreement.number}
-                  </Link>
+                  {agreementsOn ? (
+                    <Link
+                      href={`/admin/billing/agreements/${agreement.id}#payment-schedule`}
+                      className="font-medium text-abyss-600 hover:underline"
+                    >
+                      {stage ? `${stage} of ${agreement.number}` : agreement.number}
+                    </Link>
+                  ) : stage ? (
+                    `${stage} of ${agreement.number}`
+                  ) : (
+                    agreement.number
+                  )}
                 </span>
               )}
             </span>
@@ -306,20 +321,20 @@ export default async function InvoicePage({ params }: Props) {
         <aside className="min-w-0 space-y-6 print:hidden xl:col-start-2 xl:row-start-2 xl:self-start">
           <Card>
             <CardHeader title="Linked records" />
-            {invoice.lead || invoice.project || invoice.quote || agreement ? (
+            {invoice.lead || shownProject || invoice.quote || (agreementsOn && agreement) ? (
               <ul className="space-y-2">
                 {invoice.lead && (
                   <LinkedRecord
-                    href={`/admin/crm/${invoice.lead.id}`}
+                    href={clientHref(invoice.lead.id)}
                     icon={Target}
-                    label="Opportunity"
+                    label={crmOn ? "Opportunity" : "Client"}
                     title={leadTitle(invoice.lead)}
                     subtitle={
                       invoice.lead.companyName ? `${invoice.lead.fullName} · ${invoice.lead.companyName}` : invoice.lead.fullName
                     }
                   />
                 )}
-                {agreement && (
+                {agreementsOn && agreement && (
                   <LinkedRecord
                     href={`/admin/billing/agreements/${agreement.id}#payment-schedule`}
                     icon={FileSignature}
@@ -328,12 +343,12 @@ export default async function InvoicePage({ params }: Props) {
                     subtitle={stage ? `${stage} of the payment schedule` : "Voided stage invoice, since reissued"}
                   />
                 )}
-                {invoice.project && (
+                {shownProject && (
                   <LinkedRecord
-                    href={`/admin/projects/${invoice.project.id}`}
+                    href={`/admin/projects/${shownProject.id}`}
                     icon={FolderKanban}
                     label="Project"
-                    title={invoice.project.name}
+                    title={shownProject.name}
                   />
                 )}
                 {invoice.quote && (
@@ -347,7 +362,8 @@ export default async function InvoicePage({ params }: Props) {
               </ul>
             ) : (
               <p className="text-[0.82rem] text-ink-500">
-                Not linked to an opportunity or project.
+                Not linked to {crmOn ? "an opportunity" : "a client"}
+                {projectsOn ? " or project" : ""}.
                 {invoice.status === "DRAFT" && " Edit the draft to link one."}
               </p>
             )}

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { PageHeader } from "@/components/admin/ui";
 import { requireAdmin } from "@/lib/admin/dal";
+import { moduleEnabled } from "@/lib/admin/modules";
 import { filsToInput } from "@/lib/admin/money";
 import { toDateInputValue } from "@/lib/admin/time";
 import { DocumentEditor } from "../../../_components/document-editor";
@@ -27,8 +28,11 @@ export default async function EditInvoicePage({ params }: Props) {
   // Sent invoices are a record of what the client received; only drafts change.
   if (invoice.status !== "DRAFT") redirect(`/admin/billing/invoices/${invoice.id}`);
 
+  // While the projects module is off the editor shows no project picker, but a
+  // draft already linked to a project keeps that link; its project is loaded so
+  // the editor can still unlink it when the draft moves to another client.
   const { leads, projects } = await getEditorOptions({
-    includeProjects: true,
+    includeProjects: moduleEnabled("projects") || invoice.projectId !== null,
     ensureLeadIds: [invoice.leadId],
     ensureProjectIds: [invoice.projectId],
   });

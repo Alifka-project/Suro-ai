@@ -109,7 +109,7 @@ After each deploy that changes content, check the live URL with Google's
 ## Contact form email
 
 
-Every submission is saved as a lead in the admin CRM (see
+Every submission is saved as a client on the admin dashboard (see
 [Admin dashboard](#admin-dashboard)). Email is an extra notification on top: without
 credentials the form still validates, saves the lead, and simply skips the email.
 To send real email, fill in `.env.local`:
@@ -223,22 +223,63 @@ strand a visitor on a half-written answer.
 
 ## Admin dashboard
 
-A private dashboard at **`/admin`** for analytics, CRM, billing and project
-management. It is not linked from anywhere on the public site. Every page is
-one click away in the sidebar, and the pages link to each other: a lead to its
-quotations, agreement, invoices and project, and back.
+A private dashboard at **`/admin`**, not linked from anywhere on the public
+site. It currently runs as **one page**: the client dashboard.
 
 | Page | What it does |
 | --- | --- |
-| `/admin` | Analytics — new leads, open and weighted pipeline, deals won this month, revenue collected, outstanding invoices, overdue follow-ups, agreements awaiting signature, active projects |
-| `/admin/crm/pipeline` | The CRM pipeline: a kanban board of opportunities by stage (drag to move) |
-| `/admin/crm` | Every lead as a searchable list, filterable by stage |
-| `/admin/crm/activities` | Planner of scheduled calls, emails, meetings and follow-ups, overdue first |
-| `/admin/crm/<id>` | One opportunity: details, timeline of notes and events, activities, linked documents |
-| `/admin/billing` | Quotations and tax invoices in AED with 5% VAT, quote-to-invoice conversion, printable / PDF documents |
-| `/admin/billing/agreements` | Service Agreements with their Statement of Work, generated from quotations |
-| `/admin/projects` | Board of client projects with tasks, progress, due dates and invoiced-vs-value |
+| `/admin` | The client dashboard: KPI cards, monthly revenue and customer-engagement charts for the last 12 months, and a table of every client who filled in the contact form — their details, WhatsApp and call buttons, a quotation and an invoice button, and a status you can change in place |
+| `/admin/billing/quotes/new?leadId=<id>` and `/admin/billing/invoices/new?leadId=<id>` | Create a quotation or tax invoice prefilled from a client (opened from the table) |
+| `/admin/billing/quotes/<id>` and `/admin/billing/invoices/<id>` | View, edit (drafts), print / save as PDF, change the document's status, convert an accepted quote to an invoice |
 | `/admin/account` | Your password and sessions, and the team list |
+
+Quotations and invoices are in AED with 5% VAT. Their "Back" links return to
+the dashboard.
+
+### Client statuses
+
+The status column uses the team's words. They are labels over the stored
+`LeadStatus` enum, so **no database migration is needed** (and the CRM, when it
+is switched on, reads the same values):
+
+| Shown as | Stored as | Meaning |
+| --- | --- | --- |
+| New | `NEW` | Enquiry received, not contacted yet |
+| Prospect | `CONTACTED` | Contacted and interested |
+| Follow-up | `QUALIFIED` | Waiting on the next step |
+| Quotation sent | `PROPOSAL` | Quotation with the client |
+| Goal | `WON` | Deal closed |
+| Cancel | `LOST` | Not going ahead |
+
+The labels live in `src/lib/admin/labels.ts`. Accepting a quotation marks its
+client **Goal**.
+
+### Switched-off modules
+
+The full CRM (pipeline, leads list, activities, opportunity pages), projects,
+the analytics page, the billing overview and quotation / invoice lists, and
+service agreements are all **kept in the codebase but switched off** in
+`src/lib/admin/modules.ts`:
+
+```ts
+export const ADMIN_MODULES = {
+  analytics: false,  // /admin/analytics
+  crm: false,        // /admin/crm/**
+  projects: false,   // /admin/projects/**
+  billing: false,    // /admin/billing overview and list pages
+  agreements: false, // /admin/billing/agreements/** and agreement generation
+} as const;
+```
+
+While a module is off its sidebar entry is hidden, nothing links to it, and its
+URLs redirect to `/admin` (an old `/admin/crm/<id>` link opens that client's
+row on the dashboard instead). **Set flags to `true` to bring modules back** —
+their pages, sidebar entries and links return. The modules link into one
+another, so a module only comes back once every module it needs is on too
+(`MODULE_REQUIRES` in the same file): billing, agreements and projects come
+back together; the CRM needs those three; analytics needs all of them. The
+sections below on the CRM, deal automation and service agreements describe
+those modules for when they are switched on.
 
 ### Admin accounts
 
@@ -273,17 +314,20 @@ devices" there without changing it. The same page lists the team (read-only).
 ### How a lead flows in
 
 1. A visitor submits the contact form.
-2. `/api/contact` saves it as a **CRM lead** at the top of the pipeline's
-   *New* column, with "Enquiry received via the website form" on its timeline.
-3. The notification email includes an **"Open lead in dashboard"** button linking to
-   `/admin/crm/<id>`. If you are signed out, you are taken to the login page and
-   returned to that lead afterwards.
+2. `/api/contact` saves it as a client with status **New**, at the top of the
+   dashboard's client table (and of the CRM pipeline's *New* column), with
+   "Enquiry received via the website form" on its timeline.
+3. The notification email includes an **"Open client in dashboard"** button
+   linking to that client's row on the dashboard (`/admin?client=<id>#clients`;
+   their opportunity page instead while the CRM is switched on). If you are
+   signed out, you are taken to the login page first.
 
 Saving and emailing are independent: if the database is unavailable the email
 still goes out (flagged as unsaved), and if email fails the lead is still saved.
 
-You can also add a card by hand on the pipeline board, e.g. for a client you
-are approaching. Only a name is required; contact details can follow later.
+With the CRM switched on you can also add a card by hand on the pipeline board,
+e.g. for a client you are approaching. Only a name is required; contact details
+can follow later.
 
 ### The CRM, Odoo-style
 
