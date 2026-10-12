@@ -6,11 +6,14 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/admin/dal";
 import { lockLead, sortOrderAtTop } from "@/lib/admin/deals";
 import { LEAD_PIPELINE, LEAD_STATUS } from "@/lib/admin/labels";
+import { parseMoneyToFils } from "@/lib/admin/money";
+import { SERVICE_OPTIONS } from "@/lib/packages";
 import { logLeadEvent } from "@/lib/admin/timeline";
 import { db } from "@/lib/db";
 
 /*
- * The dashboard's one mutation: changing a client's status from the table.
+ * The dashboard's mutations: changing a client's status from the table, and
+ * adding a project by hand ("Add project", further down).
  *
  * A public POST endpoint like every Server Action, so it re-checks the admin
  * session, validates its input and locks the client's row. The table sends the
@@ -100,4 +103,169 @@ export async function setClientStatus(input: z.input<typeof schema>): Promise<St
   // The page, the sidebar badge and the KPIs all read statuses.
   revalidatePath("/admin", "layout");
   return { ok: true, message: `Status set to ${LEAD_STATUS[to].label}.`, status: to };
+}
+
+// ─── Add a project by hand ──────────────────────────────────────────────────
+
+/** Form state for the "Add project" dialog. `null` is the idle state. */
+export type AddProjectState = {
+  ok: boolean;
+  message: string;
+  /** Per-field messages, keyed by input name. */
+  fieldErrors?: Record<string, string>;
+  /** The new client's id, so the dialog can open its row. */
+  leadId?: string;
+  /** Changes on every submission, so the dialog can react to each one. */
+  at: number;
+} | null;
+
+/** Postgres INT4 ceiling — the largest fils amount the column can hold. */
+const MAX_FILS = 2_147_483_647;
+
+/** Trimmed single-line text, or null when blank. */
+const optionalLine = (max: number, label: string) =>
+  z
+    .string()
+    .optional()
+    .transform((s) => (s ?? "").replace(/\s+/g, " ").trim())
+    .pipe(z.string().max(max, `Keep the ${label} under ${max} characters.`))
+    .transform((s) => s || null);
+
+const addProjectSchema = z.object({
+  fullName: z
+    .string()
+    .transform((s) => s.replace(/\s+/g, " ").trim())
+    .pipe(z.string().min(1, "Add the client's name.").max(120, "Keep the name under 120 characters.")),
+  companyName: optionalLine(160, "company name"),
+  title: optionalLine(160, "project name"),
+  email: z
+    .string()
+    .optional()
+    .transform((s) => (s ?? "").trim())
+    .pipe(z.union([z.literal(""), z.email("Enter a valid email address.").max(254, "That email address is too long.")]))
+    .transform((s) => s || null),
+  phone: z
+    .string()
+    .optional()
+    .transform((s) => (s ?? "").trim())
+    .pipe(
+      z.union([
+        z.literal(""),
+        z
+          .string()
+          .transform((s) => s.replace(/\s+/g, " "))
+          .pipe(
+            z
+              .string()
+              .max(32, "That number looks too long.")
+              .regex(/^[+()\d .-]+$/, "Use digits, spaces and + ( ) . - only.")
+              .refine((s) => (s.match(/\d/g)?.length ?? 0) >= 6, "Enter at least 6 digits."),
+          ),
+      ]),
+    )
+    .transform((s) => s || null),
+  country: optionalLine(80, "country"),
+  city: optionalLine(80, "city"),
+  services: z
+    .array(z.enum(SERVICE_OPTIONS))
+    .max(SERVICE_OPTIONS.length)
+    .transform((list) => [...new Set(list)]),
+  value: z
+    .string()
+    .optional()
+    .transform((raw, ctx) => {
+      const v = (raw ?? "").trim();
+      if (!v) return null;
+      const fils = parseMoneyToFils(v);
+      if (fils === null) {
+        ctx.addIssue({ code: "custom", message: "Enter an amount in AED, for example 45,000 or 45000.50." });
+        return z.NEVER;
+      }
+      if (fils > MAX_FILS) {
+        ctx.addIssue({ code: "custom", message: "That amount is too large to store." });
+        return z.NEVER;
+      }
+      return fils;
+    }),
+  status: z.enum(LEAD_PIPELINE),
+  notes: z
+    .string()
+    .optional()
+    .transform((s) => (s ?? "").replace(/\r\n?/g, "\n").trim())
+    .pipe(z.string().max(2000, "Keep the notes under 2,000 characters."))
+    .transform((s) => s || null),
+});
+
+/**
+ * "Add project": a client or deal the team found itself, added straight to
+ * the table. Stored like a website enquiry, marked source "manual" (shown as
+ * "Added manually"), owned by whoever added it.
+ */
+export async function addProject(_prev: AddProjectState, formData: FormData): Promise<AddProjectState> {
+  const admin = await requireAdmin();
+  const text = (key: string) => {
+    const v = formData.get(key);
+    return typeof v === "string" ? v : undefined;
+  };
+  const parsed = addProjectSchema.safeParse({
+    fullName: text("fullName") ?? "",
+    companyName: text("companyName"),
+    title: text("title"),
+    email: text("email"),
+    phone: text("phone"),
+    country: text("country"),
+    city: text("city"),
+    services: formData.getAll("services").filter((v): v is string => typeof v === "string"),
+    value: text("value"),
+    status: text("status") ?? "CONTACTED",
+    notes: text("notes"),
+  });
+  if (!parsed.success) {
+    const fieldErrors: Record<string, string> = {};
+    for (const issue of parsed.error.issues) fieldErrors[String(issue.path[0] ?? "form")] ??= issue.message;
+    return { ok: false, message: "Some fields need attention.", fieldErrors, at: Date.now() };
+  }
+  const d = parsed.data;
+  const now = new Date();
+
+  let leadId: string;
+  try {
+    leadId = await db.$transaction(async (tx) => {
+      const lead = await tx.lead.create({
+        data: {
+          source: "manual",
+          status: d.status,
+          clientType: d.companyName ? "COMPANY" : "INDIVIDUAL",
+          fullName: d.fullName,
+          companyName: d.companyName,
+          title: d.title,
+          email: d.email,
+          phone: d.phone,
+          country: d.country,
+          city: d.city,
+          services: d.services,
+          estimatedValueFils: d.value,
+          message: d.notes,
+          ownerId: admin.id,
+          sortOrder: await sortOrderAtTop(tx, d.status),
+          ...(d.status === "WON" ? { wonAt: now } : {}),
+          ...(d.status === "LOST" ? { lostAt: now, lostReason: "Cancelled" } : {}),
+        },
+        select: { id: true },
+      });
+      await logLeadEvent(
+        lead.id,
+        `Opportunity created manually as ${LEAD_STATUS[d.status].label}.`,
+        admin.id,
+        tx,
+      );
+      return lead.id;
+    });
+  } catch (err) {
+    console.error("[dashboard] addProject failed:", err);
+    return { ok: false, message: "Could not add the project. Please try again.", at: Date.now() };
+  }
+
+  revalidatePath("/admin", "layout");
+  return { ok: true, message: `Added ${d.title ?? d.companyName ?? d.fullName}.`, leadId, at: Date.now() };
 }

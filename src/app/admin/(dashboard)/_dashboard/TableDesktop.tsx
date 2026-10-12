@@ -144,6 +144,12 @@ export function TableDesktop({
                       <p className="truncate text-[0.76rem] text-ink-700" title={companyOf(row)}>
                         {companyOf(row)}
                       </p>
+                      {row.title && (
+                        <p className="truncate text-[0.74rem] font-medium text-abyss-600" title={`Project: ${row.title}`}>
+                          <span className="sr-only">Project: </span>
+                          {row.title}
+                        </p>
+                      )}
                       {location && (
                         <p className="truncate text-[0.72rem] text-ink-550" title={location}>
                           {location}

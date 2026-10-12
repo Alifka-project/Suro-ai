@@ -64,6 +64,12 @@ export function ClientCard({
             {companyOf(row)}
             {location && <span className="text-ink-550"> · {location}</span>}
           </p>
+          {row.title && (
+            <p className="text-[0.78rem] font-medium text-abyss-600 [overflow-wrap:anywhere]">
+              <span className="sr-only">Project: </span>
+              {row.title}
+            </p>
+          )}
           <p className="mt-0.5 text-[0.74rem] text-ink-550">
             Received{" "}
             <time dateTime={row.createdAt} title={formatDateTime(row.createdAt)}>

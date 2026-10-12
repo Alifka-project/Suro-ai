@@ -61,6 +61,10 @@ export type ClientRow = {
   source: string;
   clientType: "COMPANY" | "INDIVIDUAL";
   fullName: string;
+  /** Project name: set when the project was added by hand ("Add project"). */
+  title: string | null;
+  /** Expected value in fils (AED), when known. */
+  valueFils: number | null;
   companyName: string | null;
   role: string | null;
   companySize: string | null;

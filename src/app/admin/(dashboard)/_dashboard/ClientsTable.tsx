@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Inbox, Info, SearchX } from "lucide-react";
 import { Card, EmptyState, LinkButton, cn } from "@/components/admin/ui";
 import { LEAD_STATUS } from "@/lib/admin/labels";
+import { AddProjectButton } from "./AddProject";
 import { ClientList } from "./ClientList";
 import { StatusProvider } from "./StatusProvider";
 import { TablePagination, TableSearch, TableStatusFilter, dashboardHref } from "./TableToolbar";
@@ -35,7 +36,7 @@ export function ClientsTable({ page, filters, now }: { page: ClientsPage; filter
         <EmptyState
           icon={Inbox}
           title="No clients yet"
-          description="Clients appear here when someone fills in the form on the website."
+          description="Clients appear here when someone fills in the form on the website, or when you add a project yourself with “Add project” above."
         />
       </div>
     );
@@ -74,8 +75,12 @@ export function ClientsTable({ page, filters, now }: { page: ClientsPage; filter
         <Card padded={false} className="min-w-0">
           {/* Header and toolbar */}
           <div className="space-y-4 border-b border-ink-100 px-4 pb-4 pt-5 sm:px-5">
-            <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between md:gap-6">
-              <div className="min-w-0">
+            {/* One Add project button in a fixed place, empty table or not: the
+                dialog it owns must survive the table re-rendering around it.
+                Phones: title and button on the first row, search below at full
+                width. From md: title · search · button on one row. */}
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-3 md:grid-cols-[minmax(0,1fr)_18rem_auto] md:items-end md:gap-x-4">
+              <div className="col-start-1 row-start-1 min-w-0">
                 <h2
                   id={HEADING_ID}
                   tabIndex={-1}
@@ -84,14 +89,17 @@ export function ClientsTable({ page, filters, now }: { page: ClientsPage; filter
                   Clients
                 </h2>
                 <p className="mt-0.5 text-[0.8rem] text-ink-550">
-                  Everyone who filled in the form on the website, newest first.
+                  Website enquiries and projects you add yourself, newest first.
                 </p>
               </div>
               {!noClientsYet && (
-                <div className="w-full md:w-72 md:shrink-0">
+                <div className="col-span-2 row-start-2 min-w-0 md:col-span-1 md:col-start-2 md:row-start-1">
                   <TableSearch q={q} status={status} />
                 </div>
               )}
+              <div className="col-start-2 row-start-1 md:col-start-3">
+                <AddProjectButton />
+              </div>
             </div>
 
             {!noClientsYet && (
