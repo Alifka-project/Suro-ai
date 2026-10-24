@@ -2,6 +2,7 @@
  * Display labels and badge tones for every status enum, in one place so the
  * CRM, billing and project screens can't drift apart.
  */
+import type { LeadStatus } from "@prisma/client";
 import { formatBusinessDate, formatBusinessDateTime } from "./time";
 
 export type Tone = "neutral" | "blue" | "aqua" | "mint" | "lilac" | "blush" | "amber" | "red";
@@ -9,19 +10,39 @@ export type Tone = "neutral" | "blue" | "aqua" | "mint" | "lilac" | "blush" | "a
 type StatusMeta = { label: string; tone: Tone };
 
 /**
- * Client (lead) status, as the team names it. The stored enum keeps its
- * original values so no data migration is needed: CONTACTED is shown as
- * "Prospect", QUALIFIED as "Follow-up", PROPOSAL as "Quotation sent", WON as
- * "Goal" (deal closed) and LOST as "Cancel".
+ * Client (lead) status, as the team names it. The stored enum keeps the CRM's
+ * names: PROPOSAL is shown as "Quotation sent", INVOICED as "Invoice sent",
+ * WON as "Goal" (deal closed) and LOST as "Cancel". CONTACTED and QUALIFIED
+ * are CRM-only stages (the CRM is switched off); no client is in them.
  */
 export const LEAD_STATUS: Record<string, StatusMeta & { hint: string }> = {
-  NEW: { label: "New", tone: "blue", hint: "Enquiry received, not contacted yet" },
+  NEW: { label: "New", tone: "blue", hint: "New enquiry or project, nothing sent yet" },
   CONTACTED: { label: "Prospect", tone: "aqua", hint: "Contacted and interested" },
   QUALIFIED: { label: "Follow-up", tone: "amber", hint: "Waiting on the next step" },
   PROPOSAL: { label: "Quotation sent", tone: "lilac", hint: "Quotation with the client" },
+  INVOICED: { label: "Invoice sent", tone: "amber", hint: "Invoice sent, waiting for payment" },
   WON: { label: "Goal", tone: "mint", hint: "Deal closed" },
   LOST: { label: "Cancel", tone: "neutral", hint: "Not going ahead" },
-};
+} satisfies Record<LeadStatus, StatusMeta & { hint: string }>;
+
+/**
+ * The statuses the dashboard offers, in order. Sending a quotation, sending an
+ * invoice and getting paid move a client along this list automatically (never
+ * backwards; see advanceClientStatus in deals.ts). Any status can be set by hand.
+ */
+export const CLIENT_STATUSES = ["NEW", "PROPOSAL", "INVOICED", "WON", "LOST"] as const satisfies readonly LeadStatus[];
+export type ClientStatus = (typeof CLIENT_STATUSES)[number];
+
+/**
+ * Stored statuses the dashboard counts and filters as New: the CRM-only stages
+ * too. The migration moved every client out of them, but the previous version
+ * could still write them while a deploy was under way.
+ */
+export const NEW_STATUSES = ["NEW", "CONTACTED", "QUALIFIED"] as const satisfies readonly LeadStatus[];
+
+export function isClientStatus(value: unknown): value is ClientStatus {
+  return typeof value === "string" && (CLIENT_STATUSES as readonly string[]).includes(value);
+}
 
 export const QUOTE_STATUS: Record<string, StatusMeta> = {
   DRAFT: { label: "Draft", tone: "neutral" },
@@ -53,8 +74,8 @@ export const TASK_STATUS: Record<string, StatusMeta> = {
   DONE: { label: "Done", tone: "mint" },
 };
 
-/** Ordered pipeline for the CRM board and the funnel chart. */
-export const LEAD_PIPELINE = ["NEW", "CONTACTED", "QUALIFIED", "PROPOSAL", "WON", "LOST"] as const;
+/** Every stage in pipeline order, for the (switched-off) CRM's lists. The dashboard uses CLIENT_STATUSES. */
+export const LEAD_PIPELINE = ["NEW", "CONTACTED", "QUALIFIED", "PROPOSAL", "INVOICED", "WON", "LOST"] as const satisfies readonly LeadStatus[];
 export const PROJECT_PIPELINE = ["PLANNING", "IN_PROGRESS", "REVIEW", "DONE", "ON_HOLD"] as const;
 
 /**

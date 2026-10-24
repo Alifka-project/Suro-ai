@@ -36,6 +36,7 @@ import {
 import {
   AGREEMENT_TOO_LARGE_MESSAGE,
   AgreementAmountTooLargeError,
+  advanceClientStatus,
   ensureAgreementForQuote,
   onQuoteAccepted,
   syncAgreementFromQuote as syncSnapshotFromQuote,
@@ -511,7 +512,7 @@ export async function setAgreementStatus(_prev: ActionState, formData: FormData)
   // Sending and signing carry the quotation along with the agreement, so both
   // take its row lock first and decide on the status read under that lock.
   const touchesQuote = quote !== null && (status === "SENT" || status === "SIGNED");
-  const unchanged = { quoteSent: false, quoteAccepted: false, leadWon: false };
+  const unchanged = { quoteSent: false, quoteAccepted: false, leadWon: false, leadAdvanced: false };
   let outcome = unchanged;
   try {
     outcome = await db.$transaction(
@@ -554,7 +555,9 @@ export async function setAgreementStatus(_prev: ActionState, formData: FormData)
             admin.id,
             tx,
           );
-          return { ...unchanged, quoteSent: true };
+          // Like sending the quotation from its own page: a New client moves to "Quotation sent".
+          const leadAdvanced = await advanceClientStatus(tx, quote.leadId, "PROPOSAL", ` — quotation ${quote.number} sent`, admin);
+          return { ...unchanged, quoteSent: true, leadAdvanced };
         }
 
         // A signature is the client's yes and outranks any earlier answer on
@@ -581,7 +584,7 @@ export async function setAgreementStatus(_prev: ActionState, formData: FormData)
     case "SENT":
       return outcome.quoteSent && quote
         ? {
-            notice: `${agreement.number} and quotation ${quote.number} marked as sent. Both are locked now; invoice the deposit from the payment schedule when it's due.`,
+            notice: `${agreement.number} and quotation ${quote.number} marked as sent. Both are locked now; invoice the deposit from the payment schedule when it's due.${outcome.leadAdvanced ? ` The client is now marked ${LEAD_STATUS.PROPOSAL.label}.` : ""}`,
             links: [{ label: `Quotation ${quote.number}`, href: `/admin/billing/quotes/${quote.id}` }],
           }
         : {

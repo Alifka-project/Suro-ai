@@ -16,11 +16,16 @@ datasource db {
 
 // ─── CRM ─────────────────────────────────────────────────────────────────────
 
+/// The dashboard uses five of these: NEW (New), PROPOSAL (Quotation sent),
+/// INVOICED (Invoice sent), WON (Goal) and LOST (Cancel). CONTACTED and
+/// QUALIFIED belong to the CRM pipeline, which is switched off; the migration
+/// that added INVOICED moved every client in them to NEW.
 enum LeadStatus {
   NEW
   CONTACTED
   QUALIFIED
   PROPOSAL
+  INVOICED
   WON
   LOST
 }
@@ -81,6 +86,11 @@ model Lead {
   /// The stage a lost opportunity was in, so "Restore" can put it back there.
   stageBeforeLost LeadStatus?
 
+  /// Set when the client is removed from the dashboard's client list. The row
+  /// is kept so its quotations, invoices, expenses and timeline stay intact,
+  /// and so the removal can be undone. Lists and figures skip removed clients.
+  removedAt DateTime?
+
   /// Salesperson responsible for the opportunity (Odoo's "Salesperson").
   ownerId String?
   owner   AdminUser? @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: SetNull)
@@ -91,10 +101,12 @@ model Lead {
   invoices   Invoice[]
   projects   Project[]
   agreements Agreement[]
+  expenses   Expense[]
 
   @@index([status, sortOrder])
   @@index([createdAt])
   @@index([ownerId])
+  @@index([removedAt, createdAt])
 }
 
 /// Timeline entry on a lead: a note the admin wrote, or an event the system
@@ -394,6 +406,40 @@ model AdminUser {
   leads      Lead[]     @relation("LeadOwner")
   notes      Note[]
   activities Activity[]
+  expenses   Expense[]
+}
+
+// ─── Expenses ────────────────────────────────────────────────────────────────
+
+/// Money the business paid out: a project cost (linked to a client on the
+/// dashboard) or a running cost (no client).
+model Expense {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  /// The day it was paid, stored at 12:00 UTC like every calendar date here.
+  date        DateTime
+  /// What was paid, VAT included, in fils.
+  amountFils  Int
+  currency    String   @default("AED")
+  /// A key from EXPENSE_CATEGORIES in src/lib/admin/expenses.ts. Plain text,
+  /// not an enum, so a category can be added without a migration.
+  category    String
+  description String
+  /// Who was paid: a supplier, freelancer, shop or authority.
+  vendor      String?
+  notes       String?
+
+  /// The client/project this cost belongs to. Null for running costs.
+  leadId String?
+  lead   Lead?   @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  /// Who recorded it. Null only for seeded demo expenses.
+  createdById String?
+  createdBy   AdminUser? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([date])
+  @@index([leadId])
 }
 
 // ─── Infrastructure ──────────────────────────────────────────────────────────

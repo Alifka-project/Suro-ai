@@ -3,8 +3,9 @@ import type { InvoiceStatus, LeadStatus, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { effectiveInvoiceStatus } from "@/lib/admin/invoices";
 import { BUSINESS_TIME_ZONE } from "@/lib/admin/time";
+import { ACTIVE_CLIENT } from "@/lib/admin/clients";
 import { DEFAULT_CURRENCY, documentTotals } from "@/lib/admin/money";
-import { LEAD_PIPELINE } from "@/lib/admin/labels";
+import { CLIENT_STATUSES, NEW_STATUSES } from "@/lib/admin/labels";
 import { addMonths, bucketIndex, isoMonth, startOfMonth } from "../_analytics/dates";
 import { leadSearchWhere } from "../crm/_lib/helpers";
 import { dialableNumber, telLink } from "./phone";
@@ -30,8 +31,11 @@ const MONTHS = 12;
 const monthShort = new Intl.DateTimeFormat("en-GB", { timeZone: BUSINESS_TIME_ZONE, month: "short" });
 const monthLong = new Intl.DateTimeFormat("en-GB", { timeZone: BUSINESS_TIME_ZONE, month: "long", year: "numeric" });
 
-/** Timeline events that record a client arriving, not the team acting. */
-const ARRIVAL_EVENT = /^(Enquiry received|Opportunity created)\b/;
+/** Timeline events that aren't the team working on a client: arriving, being removed or restored. */
+const NOT_ENGAGEMENT = /^(Enquiry received|Opportunity created|Removed from the client list|Restored to the client list)\b/;
+
+/** Quotations that still say what a project is worth (declined and expired ones don't). */
+const LIVE_QUOTE = { status: { notIn: ["DECLINED", "EXPIRED"] } } satisfies Prisma.QuoteWhereInput;
 
 export async function getDashboardData(filters: ClientFilters, now: Date = new Date()): Promise<DashboardData> {
   const thisMonth = startOfMonth(now);
@@ -40,21 +44,46 @@ export async function getDashboardData(filters: ClientFilters, now: Date = new D
   const starts = monthStarts.map((d) => d.getTime());
   const end = addMonths(now, 1).getTime();
 
-  const [totalClients, newThisMonth, statusGroups, invoices, leadsInRange, events, quotesMade, invoicesMade, clients] = await Promise.all([
-    db.lead.count(),
-    db.lead.count({ where: { createdAt: { gte: thisMonth } } }),
-    db.lead.groupBy({ by: ["status"], _count: { _all: true } }),
-    // Paid in range, plus everything still owed (any age).
+  // Removed clients drop out of the counts, the project value and the
+  // engagement chart. Invoices are counted whoever they were for: money a
+  // removed client paid was still collected.
+  const [
+    totalClients,
+    newThisMonth,
+    statusGroups,
+    projects,
+    invoices,
+    leadsInRange,
+    events,
+    quotesMade,
+    invoicesMade,
+    clients,
+  ] = await Promise.all([
+    db.lead.count({ where: ACTIVE_CLIENT }),
+    db.lead.count({ where: { ...ACTIVE_CLIENT, createdAt: { gte: thisMonth } } }),
+    db.lead.groupBy({ by: ["status"], where: ACTIVE_CLIENT, _count: { _all: true } }),
+    // What every project still on is worth: cancelled ones are out.
+    db.lead.findMany({
+      where: { ...ACTIVE_CLIENT, status: { not: "LOST" } },
+      select: {
+        estimatedValueFils: true,
+        quotes: {
+          where: LIVE_QUOTE,
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          take: 1,
+          select: { currency: true, vatBps: true, items: { select: { quantity: true, unitPriceFils: true } } },
+        },
+      },
+    }),
+    // Paid in range (revenue), and issued in range (the chart's invoiced line).
     db.invoice.findMany({
       where: {
         OR: [
           { status: "PAID", paidAt: { gte: firstMonth } },
-          { status: { in: ["SENT", "OVERDUE"] } },
           { status: { in: ["SENT", "OVERDUE", "PAID"] }, issueDate: { gte: firstMonth } },
         ],
       },
       select: {
-        leadId: true,
         status: true,
         issueDate: true,
         dueDate: true,
@@ -64,37 +93,45 @@ export async function getDashboardData(filters: ClientFilters, now: Date = new D
         items: { select: { quantity: true, unitPriceFils: true } },
       },
     }),
-    db.lead.findMany({ where: { createdAt: { gte: firstMonth } }, select: { createdAt: true } }),
+    db.lead.findMany({ where: { ...ACTIVE_CLIENT, createdAt: { gte: firstMonth } }, select: { createdAt: true } }),
     db.note.findMany({
-      where: { kind: "EVENT", createdAt: { gte: firstMonth } },
+      where: { kind: "EVENT", createdAt: { gte: firstMonth }, lead: ACTIVE_CLIENT },
       select: { leadId: true, createdAt: true, body: true },
     }),
     // Making a quotation or invoice for a client is engagement too, even
     // though it writes no timeline event.
     db.quote.findMany({
-      where: { leadId: { not: null }, createdAt: { gte: firstMonth } },
+      where: { leadId: { not: null }, lead: { is: ACTIVE_CLIENT }, createdAt: { gte: firstMonth } },
       select: { leadId: true, createdAt: true },
     }),
     db.invoice.findMany({
-      where: { leadId: { not: null }, createdAt: { gte: firstMonth } },
+      where: { leadId: { not: null }, lead: { is: ACTIVE_CLIENT }, createdAt: { gte: firstMonth } },
       select: { leadId: true, createdAt: true },
     }),
-    // Same clock as the KPIs, so a row and the Outstanding tile agree on what is overdue.
     getClientsPage(filters, now),
   ]);
 
   // ── KPIs ────────────────────────────────────────────────────────────────
-  const byStatus = new Map<LeadStatus, number>(statusGroups.map((g) => [g.status, g._count._all]));
+  const byStatus = countByStatus(statusGroups);
   const goal = byStatus.get("WON") ?? 0;
+
+  // A project is worth its latest live quotation (VAT included, like the
+  // quotation cell on its row), or the expected value entered for it.
+  let projectValueFils = 0;
+  let valuedProjects = 0;
+  for (const p of projects) {
+    const q = p.quotes[0];
+    const fromQuote = q && q.currency === DEFAULT_CURRENCY ? documentTotals(q.items, q.vatBps).totalFils : null;
+    const value = fromQuote ?? p.estimatedValueFils;
+    if (value === null) continue;
+    projectValueFils += value;
+    valuedProjects++;
+  }
 
   // ── Revenue by month ────────────────────────────────────────────────────
   const collected = Array<number>(MONTHS).fill(0);
   const invoiced = Array<number>(MONTHS).fill(0);
   let revenue12mFils = 0;
-  let outstandingFils = 0;
-  let outstandingCount = 0;
-  let overdueCount = 0;
-  let unlinkedOutstandingCount = 0;
 
   for (const inv of invoices) {
     // Totals are summed in AED only; another currency is never mixed in.
@@ -111,11 +148,6 @@ export async function getDashboardData(filters: ClientFilters, now: Date = new D
         collected[paid] += total;
         revenue12mFils += total;
       }
-    } else if (status === "SENT" || status === "OVERDUE") {
-      outstandingFils += total;
-      outstandingCount++;
-      if (status === "OVERDUE") overdueCount++;
-      if (!inv.leadId) unlinkedOutstandingCount++;
     }
   }
 
@@ -144,7 +176,7 @@ export async function getDashboardData(filters: ClientFilters, now: Date = new D
     if (i >= 0) engagedSets[i].add(leadId);
   };
   for (const e of events) {
-    if (!ARRIVAL_EVENT.test(e.body)) touch(e.leadId, e.createdAt);
+    if (!NOT_ENGAGEMENT.test(e.body)) touch(e.leadId, e.createdAt);
   }
   for (const d of quotesMade) touch(d.leadId, d.createdAt);
   for (const d of invoicesMade) touch(d.leadId, d.createdAt);
@@ -159,20 +191,29 @@ export async function getDashboardData(filters: ClientFilters, now: Date = new D
     kpis: {
       totalClients,
       newThisMonth,
-      awaitingContact: byStatus.get("NEW") ?? 0,
+      statusNew: byStatus.get("NEW") ?? 0,
       goal,
       goalRate: totalClients > 0 ? Math.round((goal / totalClients) * 100) : 0,
+      projectValueFils,
+      valuedProjects,
+      openProjects: projects.length,
       revenue12mFils,
-      outstandingFils,
-      outstandingCount,
-      overdueCount,
-      unlinkedOutstandingCount,
       currency: DEFAULT_CURRENCY,
     },
     revenue,
     engagement,
     clients,
   };
+}
+
+/** Clients per dashboard status, with any leftover CRM-only stage counted as New. */
+function countByStatus(groups: { status: LeadStatus; _count: { _all: number } }[]): Map<LeadStatus, number> {
+  const counts = new Map<LeadStatus, number>();
+  for (const g of groups) {
+    const status = (NEW_STATUSES as readonly LeadStatus[]).includes(g.status) ? "NEW" : g.status;
+    counts.set(status, (counts.get(status) ?? 0) + g._count._all);
+  }
+  return counts;
 }
 
 // ─── Clients table ────────────────────────────────────────────────────────
@@ -226,6 +267,9 @@ const clientSelect = {
       items: { select: { quantity: true, unitPriceFils: true } },
     },
   },
+  // What the project has cost so far (Expenses page). A page is at most
+  // PAGE_SIZE clients, each with a handful of costs.
+  expenses: { select: { amountFils: true, currency: true } },
   _count: { select: { quotes: true, invoices: true } },
 } satisfies Prisma.LeadSelect;
 
@@ -235,8 +279,13 @@ type ClientRecord = Prisma.LeadGetPayload<{ select: typeof clientSelect }>;
 const ORDER: Prisma.LeadOrderByWithRelationInput[] = [{ createdAt: "desc" }, { id: "desc" }];
 
 export async function getClientsPage(filters: ClientFilters, now: Date = new Date()): Promise<ClientsPage> {
-  const searchWhere = leadSearchWhere(filters.q);
-  const where: Prisma.LeadWhereInput = filters.status ? { AND: [searchWhere, { status: filters.status }] } : searchWhere;
+  const searchWhere: Prisma.LeadWhereInput = { AND: [ACTIVE_CLIENT, leadSearchWhere(filters.q)] };
+  const statusWhere: Prisma.LeadWhereInput | null = !filters.status
+    ? null
+    : filters.status === "NEW"
+      ? { status: { in: [...NEW_STATUSES] } }
+      : { status: filters.status };
+  const where: Prisma.LeadWhereInput = statusWhere ? { AND: [searchWhere, statusWhere] } : searchWhere;
 
   const [grouped, total] = await Promise.all([
     db.lead.groupBy({ by: ["status"], where: searchWhere, _count: { _all: true } }),
@@ -281,7 +330,7 @@ export async function getClientsPage(filters: ClientFilters, now: Date = new Dat
     select: clientSelect,
   });
 
-  const counts = new Map<LeadStatus, number>(grouped.map((g) => [g.status, g._count._all]));
+  const counts = countByStatus(grouped);
 
   return {
     rows: records.map((r) => toRow(r, now)),
@@ -289,7 +338,7 @@ export async function getClientsPage(filters: ClientFilters, now: Date = new Dat
     page,
     pageCount,
     pageSize: PAGE_SIZE,
-    statusCounts: LEAD_PIPELINE.map((status) => ({ status, count: counts.get(status) ?? 0 })),
+    statusCounts: CLIENT_STATUSES.map((status) => ({ status, count: counts.get(status) ?? 0 })),
     matchingAll: grouped.reduce((sum, g) => sum + g._count._all, 0),
     focusMissing,
   };
@@ -330,6 +379,7 @@ function toRow(r: ClientRecord, now: Date): ClientRow {
     : null;
   const overdueInvoiceCount = invoices.filter((e) => e.status === "OVERDUE").length;
   const unpaidInvoiceCount = overdueInvoiceCount + invoices.filter((e) => e.status === "SENT").length;
+  const costs = r.expenses.filter((e) => e.currency === DEFAULT_CURRENCY);
 
   return {
     id: r.id,
@@ -362,5 +412,7 @@ function toRow(r: ClientRecord, now: Date): ClientRow {
     invoiceCount: r._count.invoices,
     unpaidInvoiceCount,
     overdueInvoiceCount,
+    costFils: costs.reduce((sum, e) => sum + e.amountFils, 0),
+    costCount: costs.length,
   };
 }

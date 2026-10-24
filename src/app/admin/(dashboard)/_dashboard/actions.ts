@@ -4,16 +4,17 @@ import { Prisma, type LeadStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/admin/dal";
-import { lockLead, sortOrderAtTop } from "@/lib/admin/deals";
-import { LEAD_PIPELINE, LEAD_STATUS } from "@/lib/admin/labels";
+import { sortOrderAtTop } from "@/lib/admin/deals";
+import { CLIENT_STATUSES, LEAD_PIPELINE, LEAD_STATUS } from "@/lib/admin/labels";
 import { parseMoneyToFils } from "@/lib/admin/money";
 import { SERVICE_OPTIONS } from "@/lib/packages";
 import { logLeadEvent } from "@/lib/admin/timeline";
 import { db } from "@/lib/db";
 
 /*
- * The dashboard's mutations: changing a client's status from the table, and
- * adding a project by hand ("Add project", further down).
+ * The dashboard's mutations: changing a client's status from the table,
+ * removing a client from the list (and undoing that), and adding a project by
+ * hand ("Add project", further down).
  *
  * A public POST endpoint like every Server Action, so it re-checks the admin
  * session, validates its input and locks the client's row. The table sends the
@@ -41,8 +42,9 @@ const recordId = z
 
 const schema = z.object({
   leadId: recordId,
+  // Any stored status, so a client left in a CRM-only stage can still be moved.
   from: z.enum(LEAD_PIPELINE),
-  to: z.enum(LEAD_PIPELINE),
+  to: z.enum(CLIENT_STATUSES),
 });
 
 class StaleStatusError extends Error {
@@ -53,6 +55,21 @@ class StaleStatusError extends Error {
 
 class GoneError extends Error {}
 
+/**
+ * Locks the client's row until the transaction ends (the lock every status
+ * change takes; see lockLead in deals.ts) and returns what the dashboard
+ * decides from. Null if the client doesn't exist.
+ */
+async function lockClient(
+  tx: Prisma.TransactionClient,
+  leadId: string,
+): Promise<{ status: LeadStatus; removed: boolean; name: string } | null> {
+  const rows = await tx.$queryRaw<{ status: LeadStatus; removedAt: Date | null; fullName: string }[]>`
+    SELECT "status", "removedAt", "fullName" FROM "Lead" WHERE "id" = ${leadId} FOR NO KEY UPDATE`;
+  const row = rows[0];
+  return row ? { status: row.status, removed: row.removedAt !== null, name: row.fullName } : null;
+}
+
 export async function setClientStatus(input: z.input<typeof schema>): Promise<StatusChangeResult> {
   const admin = await requireAdmin();
   const parsed = schema.safeParse(input);
@@ -62,8 +79,9 @@ export async function setClientStatus(input: z.input<typeof schema>): Promise<St
 
   try {
     await db.$transaction(async (tx) => {
-      const current = await lockLead(tx, leadId);
-      if (!current) throw new GoneError();
+      const client = await lockClient(tx, leadId);
+      if (!client || client.removed) throw new GoneError();
+      const current = client.status;
       if (current !== from) throw new StaleStatusError(current);
 
       const now = new Date();
@@ -103,6 +121,62 @@ export async function setClientStatus(input: z.input<typeof schema>): Promise<St
   // The page, the sidebar badge and the KPIs all read statuses.
   revalidatePath("/admin", "layout");
   return { ok: true, message: `Status set to ${LEAD_STATUS[to].label}.`, status: to };
+}
+
+// ─── Remove a client from the list ──────────────────────────────────────────
+
+export type RemoveClientResult = { ok: boolean; message: string };
+
+const removeSchema = z.object({ leadId: recordId });
+
+/**
+ * "Remove": takes the client off the table and out of the figures. Nothing is
+ * deleted (Lead.removedAt is set), so the client's quotations, invoices,
+ * expenses and timeline stay intact and restoreClient can undo it.
+ */
+export async function removeClient(input: z.input<typeof removeSchema>): Promise<RemoveClientResult> {
+  return setRemoved(input, true);
+}
+
+/** Undo for "Remove": puts the client back on the list, status unchanged. */
+export async function restoreClient(input: z.input<typeof removeSchema>): Promise<RemoveClientResult> {
+  return setRemoved(input, false);
+}
+
+async function setRemoved(input: z.input<typeof removeSchema>, remove: boolean): Promise<RemoveClientResult> {
+  const admin = await requireAdmin();
+  const parsed = removeSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: "That client isn't valid." };
+  const { leadId } = parsed.data;
+
+  let name: string;
+  try {
+    name = await db.$transaction(async (tx) => {
+      const client = await lockClient(tx, leadId);
+      if (!client) throw new GoneError();
+      // Already done (another tab, a double click): nothing to change or log.
+      if (client.removed === remove) return client.name;
+      await tx.lead.update({ where: { id: leadId }, data: { removedAt: remove ? new Date() : null } });
+      await logLeadEvent(
+        leadId,
+        remove ? "Removed from the client list." : "Restored to the client list.",
+        admin.id,
+        tx,
+      );
+      return client.name;
+    });
+  } catch (err) {
+    revalidatePath("/admin", "layout");
+    if (err instanceof GoneError || (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025")) {
+      return { ok: false, message: "This client no longer exists. The table has been refreshed." };
+    }
+    console.error(`[dashboard] ${remove ? "removeClient" : "restoreClient"} failed:`, err);
+    return { ok: false, message: remove ? "Could not remove the client. Please try again." : "Could not restore the client. Please try again." };
+  }
+
+  // The table, the KPIs, the charts and the sidebar badge all skip removed clients.
+  revalidatePath("/admin", "layout");
+  return { ok: true, message: remove ? `${name} was removed from the list.` : `${name} is back on the list.` };
 }
 
 // ─── Add a project by hand ──────────────────────────────────────────────────
@@ -187,7 +261,7 @@ const addProjectSchema = z.object({
       }
       return fils;
     }),
-  status: z.enum(LEAD_PIPELINE),
+  status: z.enum(CLIENT_STATUSES),
   notes: z
     .string()
     .optional()
@@ -217,7 +291,7 @@ export async function addProject(_prev: AddProjectState, formData: FormData): Pr
     city: text("city"),
     services: formData.getAll("services").filter((v): v is string => typeof v === "string"),
     value: text("value"),
-    status: text("status") ?? "CONTACTED",
+    status: text("status") ?? "NEW",
     notes: text("notes"),
   });
   if (!parsed.success) {

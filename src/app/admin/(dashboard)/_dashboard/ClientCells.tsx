@@ -351,6 +351,7 @@ export function DocumentCell({ kind, row, size = "table" }: { kind: DocKind; row
       <Link
         href={`${meta.base}/${doc.id}`}
         aria-label={`Open ${noun} ${doc.number}`}
+        title={doc.number}
         className={cn(
           "inline-flex min-h-6 max-w-full items-center rounded font-mono text-[0.74rem] font-semibold text-abyss-600 underline-offset-2 hover:underline",
           FOCUS_RING,

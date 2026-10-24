@@ -18,7 +18,12 @@ import { Prisma, type AgreementStatus, type QuoteStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin/dal";
 import { INSTALLMENT_LABEL } from "@/lib/admin/agreement-terms";
-import { AGREEMENT_TOO_LARGE_MESSAGE, AgreementAmountTooLargeError, onQuoteAccepted } from "@/lib/admin/deals";
+import {
+  AGREEMENT_TOO_LARGE_MESSAGE,
+  AgreementAmountTooLargeError,
+  advanceClientStatus,
+  onQuoteAccepted,
+} from "@/lib/admin/deals";
 import { DEFAULT_CURRENCY, documentTotals, formatMoney } from "@/lib/admin/money";
 import { nextDocumentNumber } from "@/lib/admin/numbering";
 import { INVOICE_STATUS, LEAD_STATUS, QUOTE_STATUS } from "@/lib/admin/labels";
@@ -587,8 +592,9 @@ export async function setQuoteStatus(_prev: ActionState, formData: FormData): Pr
 
   const leadId = quote.leadId;
   let leadStillWon = false;
+  let leadAdvanced = false;
   try {
-    leadStillWon = await db.$transaction(async (tx) => {
+    ({ leadStillWon, leadAdvanced } = await db.$transaction(async (tx) => {
       const updated = await tx.quote.updateMany({ where: casWhere, data: { status } });
       if (updated.count === 0) throw new StaleDocumentError();
       // Stage invoices and signing both lock this quote row before they
@@ -603,10 +609,17 @@ export async function setQuoteStatus(_prev: ActionState, formData: FormData): Pr
         }
       }
       await logLeadEvent(leadId, quoteStatusEvent(quote.number, quote.status, status), admin.id, tx);
+      // Sending a draft moves a New client to "Quotation sent". Undoing an
+      // acceptance (ACCEPTED -> SENT) is not a send.
+      if (status === "SENT" && quote.status === "DRAFT") {
+        const advanced = await advanceClientStatus(tx, leadId, "PROPOSAL", ` — quotation ${quote.number} sent`, admin);
+        return { leadStillWon: false, leadAdvanced: advanced };
+      }
       // Won with no accepted quotation left: the deal this quote carried is off.
-      if (!backsOut || !leadId || quote.lead?.status !== "WON") return false;
-      return (await tx.quote.count({ where: { leadId, status: "ACCEPTED" } })) === 0;
-    });
+      if (!backsOut || !leadId || quote.lead?.status !== "WON") return { leadStillWon: false, leadAdvanced: false };
+      const stillWon = (await tx.quote.count({ where: { leadId, status: "ACCEPTED" } })) === 0;
+      return { leadStillWon: stillWon, leadAdvanced: false };
+    }));
   } catch (e) {
     if (e instanceof StaleDocumentError) return { error: "This quote changed elsewhere. Reload and try again." };
     if (e instanceof StagedBillingError && agreement) return { error: stagedLockMessage(agreement.number) };
@@ -615,6 +628,15 @@ export async function setQuoteStatus(_prev: ActionState, formData: FormData): Pr
   }
 
   revalidateAdmin();
+
+  if (leadAdvanced && leadId) {
+    const client = clientNotice(leadId);
+    const noun = client.noun.charAt(0).toUpperCase() + client.noun.slice(1);
+    return {
+      notice: `Quotation ${quote.number} sent. ${noun} marked ${LEAD_STATUS.PROPOSAL.label}.`,
+      links: [client.link],
+    };
+  }
 
   // Backing out of a deal changes neither the agreement nor the opportunity:
   // point at whatever still says the deal is on, so it isn't left that way silently.
@@ -708,11 +730,19 @@ export async function setInvoiceStatus(_prev: ActionState, formData: FormData): 
           ? `Payment of invoice ${invoice.number}${stage} undone — outstanding again.`
           : null;
 
+  // Sending an invoice moves the client to "Invoice sent", a payment to "Goal"
+  // (forward only: see advanceClientStatus). Undoing a payment moves nothing.
+  const advanceTo = status === "PAID" ? "WON" : status === "SENT" && invoice.status === "DRAFT" ? "INVOICED" : null;
+
+  let leadAdvanced = false;
   try {
-    await db.$transaction(async (tx) => {
+    leadAdvanced = await db.$transaction(async (tx) => {
       const updated = await tx.invoice.updateMany({ where: { id, status: invoice.status }, data });
       if (updated.count === 0) throw new StaleDocumentError();
       if (event) await logLeadEvent(invoice.leadId, event, admin.id, tx);
+      if (!advanceTo) return false;
+      const reason = advanceTo === "WON" ? ` — invoice ${invoice.number} paid` : ` — invoice ${invoice.number} sent`;
+      return advanceClientStatus(tx, invoice.leadId, advanceTo, reason, admin);
     });
   } catch (e) {
     if (e instanceof StaleDocumentError) return { error: "This invoice changed elsewhere. Reload and try again." };
@@ -720,6 +750,12 @@ export async function setInvoiceStatus(_prev: ActionState, formData: FormData): 
   }
 
   revalidateAdmin();
+  if (leadAdvanced && advanceTo && invoice.leadId) {
+    const client = clientNotice(invoice.leadId);
+    const noun = client.noun.charAt(0).toUpperCase() + client.noun.slice(1);
+    const what = advanceTo === "WON" ? `Invoice ${invoice.number} paid.` : `Invoice ${invoice.number} sent.`;
+    return { notice: `${what} ${noun} marked ${LEAD_STATUS[advanceTo].label}.`, links: [client.link] };
+  }
   return {};
 }
 

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { ArrowUpRight, Banknote, Inbox, TriangleAlert, Trophy, Users, Wallet, type LucideIcon } from "lucide-react";
+import { ArrowUpRight, Banknote, BriefcaseBusiness, Inbox, Trophy, Users, type LucideIcon } from "lucide-react";
 import { cn } from "@/components/admin/ui";
 import { formatMoney, formatMoneyCompact } from "@/lib/admin/money";
 import type { DashboardKpis } from "./types";
@@ -9,7 +9,7 @@ import type { DashboardKpis } from "./types";
  * The five headline figures above the charts. Server-rendered, so every number
  * is formatted once on the server and never re-formatted during hydration.
  *
- * Layout: two columns up to `lg` (Outstanding takes a full row, so a phone
+ * Layout: two columns up to `lg` (Revenue takes a full row, so a phone
  * shows the five in three short rows), then at `lg` (sidebar showing, ~700–960px
  * of content) a six-track grid with the three count tiles on the first row and
  * the two wider money tiles on the second, and five across from `xl`. The
@@ -38,7 +38,7 @@ function plural(n: number, one: string, many: string) {
  * smaller so five tiles fit beside the sidebar at 1280px. The exact amount is
  * the hover title and what screen readers hear.
  */
-function Money({ fils, currency }: { fils: number; currency: string }) {
+export function Money({ fils, currency }: { fils: number; currency: string }) {
   const exact = formatMoney(fils, currency);
   const compact = formatMoneyCompact(fils, currency);
   // trim() also strips the no-break space Intl puts after the currency code.
@@ -60,7 +60,7 @@ function Money({ fils, currency }: { fils: number; currency: string }) {
   );
 }
 
-type TileProps = {
+export type TileProps = {
   label: string;
   value: ReactNode;
   hint: ReactNode;
@@ -76,7 +76,7 @@ type TileProps = {
 const TILE =
   "flex h-full flex-col rounded-2xl border border-ink-100 bg-white p-4 shadow-[0_1px_2px_rgb(7_38_60_/_0.04),0_8px_24px_-14px_rgb(7_38_60_/_0.10)] sm:p-5";
 
-function Tile({ label, value, hint, icon: Icon, accent, href, linkHint }: TileProps) {
+export function Tile({ label, value, hint, icon: Icon, accent, href, linkHint }: TileProps) {
   const body = (
     <>
       <p className="flex min-w-0 items-center gap-2 text-[0.8rem] font-medium text-ink-550">
@@ -143,9 +143,9 @@ export function Kpis({ kpis }: { kpis: DashboardKpis }) {
     {
       // Clients whose status is still New, of any age. Not the same as the
       // engagement chart's "Clients added", which counts arrivals per month.
-      label: "New enquiries",
-      value: count.format(kpis.awaitingContact),
-      hint: "Status New, not contacted yet",
+      label: "New",
+      value: count.format(kpis.statusNew),
+      hint: "Nothing sent to them yet",
       icon: Inbox,
       accent: "from-azure-500 to-aqua-500",
       href: "/admin?status=NEW#clients",
@@ -161,40 +161,27 @@ export function Kpis({ kpis }: { kpis: DashboardKpis }) {
       linkHint: "Show these clients in the table",
     },
     {
+      // The total of every project still on (cancelled excluded): its latest
+      // live quotation, else the expected value entered for it.
+      label: "Project value",
+      value: <Money fils={kpis.projectValueFils} currency={currency} />,
+      hint:
+        kpis.openProjects === 0
+          ? "No projects yet"
+          : kpis.valuedProjects === 0
+            ? `${plural(kpis.openProjects, "project", "projects")}, none priced yet`
+            : kpis.valuedProjects === kpis.openProjects
+              ? `Total of ${plural(kpis.openProjects, "project", "projects")}`
+              : `Total of ${plural(kpis.valuedProjects, "project", "projects")} · ${count.format(kpis.openProjects - kpis.valuedProjects)} not priced yet`,
+      icon: BriefcaseBusiness,
+      accent: "from-lilac-600 to-azure-500",
+    },
+    {
       label: "Revenue",
       value: <Money fils={kpis.revenue12mFils} currency={currency} />,
       hint: "Collected, last 12 months",
       icon: Banknote,
       accent: "from-aqua-600 to-mint-600",
-    },
-    {
-      label: "Outstanding",
-      value: <Money fils={kpis.outstandingFils} currency={currency} />,
-      hint:
-        kpis.outstandingCount === 0 ? (
-          "No unpaid invoices"
-        ) : (
-          <>
-            {plural(kpis.outstandingCount, "unpaid invoice", "unpaid invoices")}
-            {kpis.overdueCount > 0 && (
-              <>
-                {" · "}
-                <span className="inline-flex items-center gap-1 font-semibold text-red-600">
-                  <TriangleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                  {count.format(kpis.overdueCount)} overdue
-                </span>
-              </>
-            )}
-            {kpis.unlinkedOutstandingCount > 0 && (
-              // Counted here but on no table row: saved without a client.
-              <span className="mt-0.5 block text-ink-550">
-                {plural(kpis.unlinkedOutstandingCount, "invoice", "invoices")} not linked to a client
-              </span>
-            )}
-          </>
-        ),
-      icon: Wallet,
-      accent: "from-lilac-600 to-blush-500",
     },
   ];
 

@@ -1,4 +1,5 @@
 import type { InvoiceStatus, LeadStatus, QuoteStatus } from "@prisma/client";
+import type { ClientStatus } from "@/lib/admin/labels";
 
 /*
  * Shapes the dashboard page hands to its components. Plain, serialisable
@@ -6,23 +7,26 @@ import type { InvoiceStatus, LeadStatus, QuoteStatus } from "@prisma/client";
  */
 
 export type DashboardKpis = {
-  /** Every client who has filled in the form (all time). */
+  /** Every client on the list (all time; removed clients excluded). */
   totalClients: number;
   newThisMonth: number;
-  /** Status New: enquiries nobody has contacted yet. */
-  awaitingContact: number;
+  /** Status New: nothing sent to them yet. */
+  statusNew: number;
   /** Status Goal (deal closed). */
   goal: number;
   /** Goal as a share of all clients, 0–100, rounded. */
   goalRate: number;
+  /**
+   * What the projects that aren't cancelled are worth, in fils (AED): each
+   * one's latest live quotation (VAT included), else its expected value.
+   */
+  projectValueFils: number;
+  /** Projects counted in projectValueFils (the rest have no value yet). */
+  valuedProjects: number;
+  /** Clients that aren't cancelled. */
+  openProjects: number;
   /** Paid invoices over the last 12 months, in fils (AED). */
   revenue12mFils: number;
-  /** Sent + overdue invoices not yet paid, in fils (AED). */
-  outstandingFils: number;
-  outstandingCount: number;
-  overdueCount: number;
-  /** Of outstandingCount: invoices saved without a linked client, so not on any row of the table. */
-  unlinkedOutstandingCount: number;
   currency: string;
 };
 
@@ -97,6 +101,9 @@ export type ClientRow = {
   unpaidInvoiceCount: number;
   /** Of unpaidInvoiceCount: those past their due day. */
   overdueInvoiceCount: number;
+  /** Expenses recorded against this project, in fils (AED), and how many. */
+  costFils: number;
+  costCount: number;
 };
 
 export type StatusCount = { status: LeadStatus; count: number };
@@ -126,7 +133,7 @@ export type DashboardData = {
 
 export type ClientFilters = {
   q: string;
-  status: LeadStatus | null;
+  status: ClientStatus | null;
   page: number;
   /** ?client=<id>: open this client's row (e.g. from the notification email). */
   focus: string | null;

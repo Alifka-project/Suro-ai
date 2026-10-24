@@ -155,7 +155,7 @@ function FocusNotice({ id, filtered }: { id: string; filtered: boolean }) {
           .
         </p>
       ) : (
-        <p>That client could not be found. They may have been deleted.</p>
+        <p>That client isn&apos;t on the list. They may have been removed.</p>
       )}
     </div>
   );

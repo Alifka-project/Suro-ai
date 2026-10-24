@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ClientCard } from "./ClientCard";
+import { useClientStatus } from "./StatusProvider";
 import { TableDesktop } from "./TableDesktop";
 import type { ClientRow } from "./types";
 
@@ -12,7 +13,10 @@ import type { ClientRow } from "./types";
  * A client linked from elsewhere (?client=<id>, e.g. the new-enquiry email)
  * is highlighted, opened and scrolled into view.
  */
-export function ClientList({ rows, now, focus }: { rows: ClientRow[]; now: string; focus: string | null }) {
+export function ClientList({ rows: allRows, now, focus }: { rows: ClientRow[]; now: string; focus: string | null }) {
+  // A client being removed disappears at once, before the table refreshes.
+  const { isRemoving } = useClientStatus();
+  const rows = allRows.filter((r) => !isRemoving(r.id));
   const focusId = focus && rows.some((r) => r.id === focus) ? focus : null;
 
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set(focusId ? [focusId] : []));

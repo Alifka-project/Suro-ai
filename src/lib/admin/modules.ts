@@ -1,9 +1,11 @@
 /**
  * Which admin modules are switched on.
  *
- * The admin currently runs as ONE page: the client dashboard at /admin. The
- * full CRM, projects, analytics and billing modules are kept in the codebase,
- * untouched, and switched off here.
+ * The admin currently runs as two pages: the client dashboard at /admin and
+ * Expenses at /admin/expenses (always on, no flag). The full CRM, projects,
+ * analytics and billing modules are kept in the codebase, untouched, and
+ * switched off here. They don't filter removed clients yet: see
+ * src/lib/admin/clients.ts before turning one back on.
  *
  * To bring a module back, set its flag to true AND the flags of every module
  * it needs (MODULE_REQUIRES below). The hidden modules link to one another,

@@ -2,10 +2,15 @@
 
 import { useEffect, useState } from "react";
 import type { LeadStatus } from "@prisma/client";
-import { Ban, CircleAlert, CircleCheck, RotateCcw, Trophy, X } from "lucide-react";
+import { Ban, CircleAlert, CircleCheck, RotateCcw, Trash2, Trophy, X } from "lucide-react";
 import { cn } from "@/components/admin/ui";
-import { LEAD_STATUS } from "@/lib/admin/labels";
 import type { StatusChange } from "./StatusProvider";
+
+/** What "Undo" does: put a status back, or put a removed client back on the list. */
+export type UndoAction = { label: string } & (
+  | { kind: "status"; change: StatusChange }
+  | { kind: "restore"; leadId: string; name: string }
+);
 
 export type StatusNotice = {
   /** Distinguishes two identical messages in a row, so each one is announced. */
@@ -14,10 +19,12 @@ export type StatusNotice = {
   ok: boolean;
   title: string;
   message: string;
-  /** The status the client moved to (successful changes only). */
+  /** The status the client moved to (successful status changes only). */
   to?: LeadStatus;
-  /** The change that puts it back, offered as "Undo". */
-  undo?: StatusChange | null;
+  /** Set on a successful removal or restore instead of `to`. */
+  kind?: "removed" | "restored";
+  /** What puts it back, offered as "Undo". */
+  undo?: UndoAction | null;
 };
 
 /** Confirmations fade on their own (paused while hovered or focused); errors stay until dismissed. */
@@ -37,7 +44,7 @@ export function StatusToast({
 }: {
   notice: StatusNotice | null;
   onDismiss: () => void;
-  onUndo: (change: StatusChange) => void;
+  onUndo: (action: UndoAction) => void;
 }) {
   const [held, setHeld] = useState(false);
   // A new message starts its own timer (render-time reset, not an effect).
@@ -54,7 +61,9 @@ export function StatusToast({
   }, [notice, held, onDismiss]);
 
   const won = notice?.ok && notice.to === "WON";
-  const lost = notice?.ok && notice.to === "LOST";
+  // Cancelled and removed read alike: the client is out of play.
+  const lost = notice?.ok && (notice.to === "LOST" || notice.kind === "removed");
+  const removed = notice?.ok && notice.kind === "removed";
 
   return (
     <>
@@ -100,6 +109,8 @@ export function StatusToast({
                   <CircleAlert className="h-4 w-4" />
                 ) : won ? (
                   <Trophy className="h-4 w-4" />
+                ) : removed ? (
+                  <Trash2 className="h-4 w-4" />
                 ) : lost ? (
                   <Ban className="h-4 w-4" />
                 ) : (
@@ -124,9 +135,7 @@ export function StatusToast({
                   >
                     <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
                     Undo
-                    <span className="sr-only">
-                      : set {notice.undo.name} back to {LEAD_STATUS[notice.undo.to].label}
-                    </span>
+                    <span className="sr-only">: {notice.undo.label}</span>
                   </button>
                 )}
               </div>

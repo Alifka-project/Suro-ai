@@ -14,11 +14,11 @@ import { dayKey } from "./time";
 import type { Tone } from "./labels";
 
 /** Columns of the pipeline board, in order. */
-export const BOARD_STAGES = ["NEW", "CONTACTED", "QUALIFIED", "PROPOSAL", "WON"] as const satisfies readonly LeadStatus[];
+export const BOARD_STAGES = ["NEW", "CONTACTED", "QUALIFIED", "PROPOSAL", "INVOICED", "WON"] as const satisfies readonly LeadStatus[];
 export type BoardStage = (typeof BOARD_STAGES)[number];
 
 /** Stages an opportunity can be moved between by hand (Won/Lost have their own actions). */
-export const OPEN_STAGES = ["NEW", "CONTACTED", "QUALIFIED", "PROPOSAL"] as const satisfies readonly LeadStatus[];
+export const OPEN_STAGES = ["NEW", "CONTACTED", "QUALIFIED", "PROPOSAL", "INVOICED"] as const satisfies readonly LeadStatus[];
 export type OpenStage = (typeof OPEN_STAGES)[number];
 
 export function isBoardStage(value: unknown): value is BoardStage {
@@ -35,6 +35,7 @@ export const STAGE_PROBABILITY: Record<LeadStatus, number> = {
   CONTACTED: 20,
   QUALIFIED: 40,
   PROPOSAL: 60,
+  INVOICED: 80,
   WON: 100,
   LOST: 0,
 };

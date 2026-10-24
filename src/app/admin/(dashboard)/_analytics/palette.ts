@@ -30,4 +30,12 @@ export const CHART = {
   cursor: "#d3e0e9",
   haze: "#eef5fa",
   surface: "#ffffff",
+  /**
+   * Expense columns on the Expenses page (blush-ink, 6.1:1 on white). The
+   * dashboard's Engagement line repeats this hex as COLOR.engaged in
+   * _dashboard/charts.tsx: change both together.
+   */
+  blushInk: "#b02e63",
+  /** Hovered expense column: one step darker on the same ramp. */
+  blushInkHover: "#8f2350",
 } as const;

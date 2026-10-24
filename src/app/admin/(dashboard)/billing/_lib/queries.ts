@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { db } from "@/lib/db";
+import { ACTIVE_CLIENT } from "@/lib/admin/clients";
 import { requireAdmin } from "@/lib/admin/dal";
 import type { LeadOption, ProjectOption } from "./types";
 
@@ -81,11 +82,12 @@ function toLeadOption(l: {
   return { id: l.id, name: l.fullName, email: l.email, company: l.companyName, estimatedValueFils: l.estimatedValueFils };
 }
 
+/** A client removed from the list is treated as not found: new documents are for clients on the list. */
 export async function findLeadForPrefill(id: string | undefined) {
   await requireAdmin();
   if (!isPlausibleId(id)) return null;
-  return db.lead.findUnique({
-    where: { id },
+  return db.lead.findFirst({
+    where: { id, ...ACTIVE_CLIENT },
     select: { ...leadSelect, services: true },
   });
 }
@@ -123,7 +125,9 @@ export async function getEditorOptions({
   await requireAdmin();
 
   const [recentLeads, recentProjects] = await Promise.all([
-    db.lead.findMany({ orderBy: { createdAt: "desc" }, take: 300, select: leadSelect }),
+    // Removed clients aren't offered, but one a document already links to is
+    // still loaded below (ensureLeadIds), so editing it keeps the link.
+    db.lead.findMany({ where: ACTIVE_CLIENT, orderBy: { createdAt: "desc" }, take: 300, select: leadSelect }),
     includeProjects
       ? db.project.findMany({ orderBy: { createdAt: "desc" }, take: 300, select: projectOptionSelect })
       : Promise.resolve([]),

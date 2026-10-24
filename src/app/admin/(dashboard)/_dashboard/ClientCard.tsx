@@ -15,6 +15,7 @@ import {
   sourceMarker,
 } from "./ClientCells";
 import { ClientDetails } from "./ClientDetails";
+import { RemoveButton } from "./RemoveButton";
 import { StatusSelect } from "./StatusSelect";
 import type { ClientRow } from "./types";
 
@@ -125,18 +126,21 @@ export function ClientCard({
         </div>
       </div>
 
-      {/* Details */}
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={panelId}
-        onClick={() => onToggle(row.id)}
-        className="-ml-2 mt-3 inline-flex h-9 items-center gap-1.5 rounded-lg px-2 text-[0.82rem] font-semibold text-abyss-600 transition-colors hover:bg-azure-500/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-azure-500"
-      >
-        <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", open && "rotate-180")} aria-hidden="true" />
-        {open ? "Hide details" : "Show details"}
-        <span className="sr-only"> for {row.fullName}</span>
-      </button>
+      {/* Details, and Remove at the far end of the same row */}
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={panelId}
+          onClick={() => onToggle(row.id)}
+          className="-ml-2 mt-3 inline-flex h-9 items-center gap-1.5 rounded-lg px-2 text-[0.82rem] font-semibold text-abyss-600 transition-colors hover:bg-azure-500/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-azure-500"
+        >
+          <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", open && "rotate-180")} aria-hidden="true" />
+          {open ? "Hide details" : "Show details"}
+          <span className="sr-only"> for {row.fullName}</span>
+        </button>
+        <RemoveButton row={row} variant="card" />
+      </div>
       <div id={panelId} hidden={!open} className="mt-2">
         <ClientDetails row={row} now={now} />
       </div>

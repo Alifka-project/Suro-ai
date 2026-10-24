@@ -9,6 +9,7 @@ import {
   ChartNoAxesCombined,
   Users,
   Receipt,
+  ReceiptText,
   FolderKanban,
   ExternalLink,
   LogOut,
@@ -62,8 +63,10 @@ type NavItem = {
  * /admin/crm/<id> under Leads.
  */
 const NAV: NavItem[] = [
-  // New enquiries are counted here: the dashboard's client table is where they land.
+  // Clients with status New are counted here: the dashboard's client table is where they are.
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, section: "/admin", exact: true, badge: "newLeads" },
+  // What the business spends. Always shown; Dashboard is `exact`, so it stays unlit here.
+  { href: "/admin/expenses", label: "Expenses", icon: ReceiptText, section: "/admin/expenses" },
   {
     href: "/admin/analytics",
     label: "Analytics",
@@ -143,7 +146,7 @@ const plural = (count: number, one: string, many: string) => `${count} ${count =
 
 /** Count pill. The number is spelled out for screen readers, never carried by colour alone. */
 function CountBadge({ count, kind }: { count: number; kind: "new" | "overdue" }) {
-  const text = kind === "new" ? plural(count, "new enquiry", "new enquiries") : `${count} overdue`;
+  const text = kind === "new" ? plural(count, "new client", "new clients") : `${count} overdue`;
   return (
     <span
       title={text}
@@ -380,7 +383,7 @@ export function Sidebar({
           aria-label={
             newLeads + overdueActivities > 0
               ? `Open navigation (${[
-                  newLeads > 0 && plural(newLeads, "new enquiry", "new enquiries"),
+                  newLeads > 0 && plural(newLeads, "new client", "new clients"),
                   overdueActivities > 0 && plural(overdueActivities, "overdue activity", "overdue activities"),
                 ]
                   .filter(Boolean)

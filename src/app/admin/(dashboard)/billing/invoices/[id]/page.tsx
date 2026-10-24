@@ -24,7 +24,7 @@ import { INVOICE_STATUS, timeAgo } from "@/lib/admin/labels";
 import { billingBackHref, clientHref, moduleEnabled } from "@/lib/admin/modules";
 import { calendarDaysBetween, formatBusinessDate, formatBusinessDateTime } from "@/lib/admin/time";
 import { deleteDraftInvoice, setInvoiceStatus } from "../../actions";
-import { ActionButton } from "../../_components/action-button";
+import { ActionButton, ActionNotices } from "../../_components/action-button";
 import { BillingDocument } from "../../_components/billing-document";
 import { BackLink, LinkedRecord, StatusNote } from "../../_components/detail-parts";
 import { PrintButton } from "../../_components/print-button";
@@ -191,100 +191,104 @@ export default async function InvoicePage({ params }: Props) {
             </p>
             <StatusNote tone={note.tone}>{note.text}</StatusNote>
 
-            <div className="mt-4 grid gap-2">
-              {can("SENT") && invoice.status === "DRAFT" && (
-                <ActionButton
-                  action={setInvoiceStatus}
-                  fields={statusFields("SENT")}
-                  variant="primary"
-                  pendingLabel="Updating"
-                  confirm={{
-                    title: `Mark ${invoice.number} as sent?`,
-                    description:
-                      "The invoice is locked for editing and starts counting towards outstanding. A sent invoice can only be voided and reissued, not edited.",
-                    confirmLabel: "Mark as sent",
-                    tone: "primary",
-                  }}
-                >
-                  <Send className={ICON} aria-hidden="true" />
-                  Mark as sent
-                </ActionButton>
-              )}
+            {/* Keeps the outcome ("Invoice … paid. Client marked Goal.") on
+                screen after the button that caused it is gone. */}
+            <ActionNotices className="mt-4">
+              <div className="grid gap-2">
+                {can("SENT") && invoice.status === "DRAFT" && (
+                  <ActionButton
+                    action={setInvoiceStatus}
+                    fields={statusFields("SENT")}
+                    variant="primary"
+                    pendingLabel="Updating"
+                    confirm={{
+                      title: `Mark ${invoice.number} as sent?`,
+                      description:
+                        "The invoice is locked for editing and starts counting towards outstanding. A sent invoice can only be voided and reissued, not edited.",
+                      confirmLabel: "Mark as sent",
+                      tone: "primary",
+                    }}
+                  >
+                    <Send className={ICON} aria-hidden="true" />
+                    Mark as sent
+                  </ActionButton>
+                )}
 
-              {can("PAID") && (
-                <ActionButton action={setInvoiceStatus} fields={statusFields("PAID")} variant="primary" pendingLabel="Recording payment">
-                  <Banknote className={ICON} aria-hidden="true" />
-                  Mark as paid
-                </ActionButton>
-              )}
+                {can("PAID") && (
+                  <ActionButton action={setInvoiceStatus} fields={statusFields("PAID")} variant="primary" pendingLabel="Recording payment">
+                    <Banknote className={ICON} aria-hidden="true" />
+                    Mark as paid
+                  </ActionButton>
+                )}
 
-              {/* Only while not yet past due: otherwise it would still show as overdue. */}
-              {can("SENT") && invoice.status === "OVERDUE" && !isSentMoveUseless(invoice, now) && (
-                <ActionButton action={setInvoiceStatus} fields={statusFields("SENT")} pendingLabel="Updating">
-                  <Undo2 className={ICON} aria-hidden="true" />
-                  Mark as sent (not yet due)
-                </ActionButton>
-              )}
+                {/* Only while not yet past due: otherwise it would still show as overdue. */}
+                {can("SENT") && invoice.status === "OVERDUE" && !isSentMoveUseless(invoice, now) && (
+                  <ActionButton action={setInvoiceStatus} fields={statusFields("SENT")} pendingLabel="Updating">
+                    <Undo2 className={ICON} aria-hidden="true" />
+                    Mark as sent (not yet due)
+                  </ActionButton>
+                )}
 
-              {can("SENT") && invoice.status === "PAID" && (
-                <ActionButton
-                  action={setInvoiceStatus}
-                  fields={statusFields("SENT")}
-                  pendingLabel="Updating"
-                  confirm={{
-                    title: "Mark as unpaid?",
-                    description: "The payment date is cleared and the invoice counts as outstanding again.",
-                    confirmLabel: "Mark as unpaid",
-                    tone: "primary",
-                  }}
-                >
-                  <Undo2 className={ICON} aria-hidden="true" />
-                  Mark as unpaid
-                </ActionButton>
-              )}
+                {can("SENT") && invoice.status === "PAID" && (
+                  <ActionButton
+                    action={setInvoiceStatus}
+                    fields={statusFields("SENT")}
+                    pendingLabel="Updating"
+                    confirm={{
+                      title: "Mark as unpaid?",
+                      description: "The payment date is cleared and the invoice counts as outstanding again.",
+                      confirmLabel: "Mark as unpaid",
+                      tone: "primary",
+                    }}
+                  >
+                    <Undo2 className={ICON} aria-hidden="true" />
+                    Mark as unpaid
+                  </ActionButton>
+                )}
 
-              {invoice.status === "DRAFT" && (
-                <LinkButton href={`/admin/billing/invoices/${invoice.id}/edit`} variant="secondary" className="w-full">
-                  <Pencil className={ICON} aria-hidden="true" />
-                  Edit draft
-                </LinkButton>
-              )}
+                {invoice.status === "DRAFT" && (
+                  <LinkButton href={`/admin/billing/invoices/${invoice.id}/edit`} variant="secondary" className="w-full">
+                    <Pencil className={ICON} aria-hidden="true" />
+                    Edit draft
+                  </LinkButton>
+                )}
 
-              {can("VOID") && (
-                <ActionButton
-                  action={setInvoiceStatus}
-                  fields={statusFields("VOID")}
-                  variant="danger"
-                  pendingLabel="Voiding"
-                  confirm={{
-                    title: `Void ${invoice.number}?`,
-                    description:
-                      "The invoice stays on record but no longer counts as outstanding. Void invoices can't be reopened — issue a new invoice if needed.",
-                    confirmLabel: "Void invoice",
-                  }}
-                >
-                  <Ban className={ICON} aria-hidden="true" />
-                  Void invoice
-                </ActionButton>
-              )}
+                {can("VOID") && (
+                  <ActionButton
+                    action={setInvoiceStatus}
+                    fields={statusFields("VOID")}
+                    variant="danger"
+                    pendingLabel="Voiding"
+                    confirm={{
+                      title: `Void ${invoice.number}?`,
+                      description:
+                        "The invoice stays on record but no longer counts as outstanding. Void invoices can't be reopened — issue a new invoice if needed.",
+                      confirmLabel: "Void invoice",
+                    }}
+                  >
+                    <Ban className={ICON} aria-hidden="true" />
+                    Void invoice
+                  </ActionButton>
+                )}
 
-              {invoice.status === "DRAFT" && (
-                <ActionButton
-                  action={deleteDraftInvoice}
-                  fields={{ id: invoice.id }}
-                  variant="danger"
-                  pendingLabel="Deleting"
-                  confirm={{
-                    title: `Delete ${invoice.number}?`,
-                    description: "This draft and its line items will be permanently removed. This can't be undone.",
-                    confirmLabel: "Delete draft",
-                  }}
-                >
-                  <Trash2 className={ICON} aria-hidden="true" />
-                  Delete draft
-                </ActionButton>
-              )}
-            </div>
+                {invoice.status === "DRAFT" && (
+                  <ActionButton
+                    action={deleteDraftInvoice}
+                    fields={{ id: invoice.id }}
+                    variant="danger"
+                    pendingLabel="Deleting"
+                    confirm={{
+                      title: `Delete ${invoice.number}?`,
+                      description: "This draft and its line items will be permanently removed. This can't be undone.",
+                      confirmLabel: "Delete draft",
+                    }}
+                  >
+                    <Trash2 className={ICON} aria-hidden="true" />
+                    Delete draft
+                  </ActionButton>
+                )}
+              </div>
+            </ActionNotices>
           </Card>
         </section>
 

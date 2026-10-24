@@ -4,8 +4,8 @@ import { KPI_GRID, KPI_SPANS } from "../_dashboard/Kpis";
 /** Column heights for the chart placeholders (fixed, so server and client agree). */
 const BARS = [38, 52, 44, 63, 58, 71, 49, 66, 80, 61, 74, 57];
 
-/** Status chip widths, roughly matching All, New, Prospect, Follow-up, Quotation sent, Goal, Cancel. */
-const CHIPS = ["w-14", "w-[4.5rem]", "w-24", "w-[6.5rem]", "w-32", "w-[4.5rem]", "w-20"];
+/** Status chip widths, roughly matching All, New, Quotation sent, Invoice sent, Goal, Cancel. */
+const CHIPS = ["w-14", "w-[4.5rem]", "w-32", "w-[7.5rem]", "w-[4.5rem]", "w-20"];
 
 const CARD = "rounded-2xl border border-ink-100 bg-white shadow-[0_1px_2px_rgb(7_38_60_/_0.04),0_8px_24px_-14px_rgb(7_38_60_/_0.10)]";
 

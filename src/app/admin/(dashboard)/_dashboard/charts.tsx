@@ -12,23 +12,27 @@ import {
   YAxis,
   type TooltipContentProps,
 } from "recharts";
-import { Banknote, MessagesSquare } from "lucide-react";
+import { Banknote, MessagesSquare, ReceiptText } from "lucide-react";
 import { EmptyState, cn } from "@/components/admin/ui";
 import { formatMoney } from "@/lib/admin/money";
 import { ChartCard } from "../_analytics/ChartCard";
 import { CHART } from "../_analytics/palette";
-import type { EngagementPoint, RevenuePoint } from "./types";
+import type { EngagementPoint, MonthPoint, RevenuePoint } from "./types";
 
 /*
- * The dashboard's two monthly charts: columns for the main measure, a line for
- * the second one, on ONE shared y-axis (both series in a chart use the same
- * unit, so no second scale is needed).
+ * The monthly charts: the dashboard's two (Revenue, Engagement) and the
+ * Expenses page's one (ExpensesChart, at the end of this file). Columns for the
+ * main measure, a line for the second one, on ONE shared y-axis (both series
+ * in a chart use the same unit, so no second scale is needed).
  *
  * Series colours are SULOAI brand steps, checked as pairs for colour-blind
  * separation and 3:1 contrast on white:
  *   Revenue     — Collected columns abyss-600, Invoiced line aqua-600.
  *   Engagement  — Clients added columns azure-500, Clients engaged line blush-ink.
+ *   Expenses    — Expenses columns blush-ink, Revenue collected line abyss-600.
  * Text never takes a series colour; identity comes from the key beside it.
+ * blush-ink is written in two places, COLOR.engaged below and CHART.blushInk
+ * in ../_analytics/palette.ts: retune both together.
  *
  * Accessibility: the SVG is a visual duplicate and is hidden from assistive
  * tech (recharts' keyboard layer would add an unnamed tab stop). Its words are
@@ -426,6 +430,123 @@ export function EngagementChart({
           icon={MessagesSquare}
           title="No clients or client activity yet"
           description="New clients and the clients your team works with will be charted here month by month."
+        />
+      )}
+    </ChartCard>
+  );
+}
+
+// ─── Expenses (the Expenses page) ───────────────────────────────────────────
+
+/** One business month on the Expenses page's chart. Integer fils, AED. */
+export type ExpensesPoint = MonthPoint & {
+  /** Expenses dated that month, VAT included. */
+  expensesFils: number;
+  /** Paid invoices by payment month: the dashboard's Revenue, month by month. */
+  collectedFils: number;
+};
+
+/*
+ * Expense columns in blush-ink against a revenue line in abyss-600: warm
+ * against cool, so the pair separates for every common form of colour
+ * blindness, and each clears 3:1 on white. The marks differ too (columns vs a
+ * line with dots), and the legend names both.
+ */
+const EXPENSES_COLOR = {
+  expenses: CHART.blushInk,
+  expensesHover: CHART.blushInkHover,
+  collected: CHART.abyss,
+} as const;
+
+const EXPENSES_SERIES: Series[] = [
+  { label: "Expenses", color: EXPENSES_COLOR.expenses, kind: "bar" },
+  { label: "Revenue collected", color: EXPENSES_COLOR.collected, kind: "line" },
+];
+
+export function ExpensesChart({
+  data,
+  currency,
+  subtitle,
+  summary,
+}: {
+  data: ExpensesPoint[];
+  currency: string;
+  /** One line with the 12-month totals, formatted on the server. */
+  subtitle: string;
+  /** Spoken description of the chart, formatted on the server. */
+  summary: string;
+}) {
+  const monthLabel = useMonthLabels(data);
+  const hasData = data.some((p) => p.expensesFils > 0 || p.collectedFils > 0);
+
+  const renderTooltip = (props: TooltipContentProps) => {
+    const point = pointOf<ExpensesPoint>(props);
+    if (!point) return null;
+    return (
+      <TooltipCard
+        title={point.fullLabel}
+        rows={[
+          { label: "Expenses", color: EXPENSES_COLOR.expenses, value: formatMoney(point.expensesFils, currency) },
+          { label: "Revenue collected", color: EXPENSES_COLOR.collected, value: formatMoney(point.collectedFils, currency) },
+        ]}
+      />
+    );
+  };
+
+  const table = hasData ? (
+    <MonthTable
+      caption={`Expenses and revenue collected per month, last 12 months, ${currency}`}
+      columns={["Month", "Expenses", "Revenue"]}
+      rows={[...data].reverse().map((p) => ({
+        key: p.key,
+        label: p.fullLabel,
+        values: [formatMoney(p.expensesFils, currency), formatMoney(p.collectedFils, currency)],
+        zero: [p.expensesFils === 0, p.collectedFils === 0],
+      }))}
+      totals={[
+        formatMoney(sum(data, (p) => p.expensesFils), currency),
+        formatMoney(sum(data, (p) => p.collectedFils), currency),
+      ]}
+    />
+  ) : undefined;
+
+  return (
+    <ChartCard title="Expenses and revenue by month" subtitle={subtitle} table={table}>
+      {hasData ? (
+        <Figure legend={<Legend series={EXPENSES_SERIES} unit={currency} />} summary={summary}>
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={data} margin={MARGIN} barCategoryGap="28%" accessibilityLayer={false}>
+              <CartesianGrid vertical={false} stroke={CHART.grid} />
+              <XAxis {...X_AXIS} tickFormatter={monthLabel} />
+              <YAxis {...Y_AXIS} width={40} tickFormatter={(fils: number) => axisCompact.format(fils / 100)} />
+              <Tooltip content={renderTooltip} cursor={CURSOR} isAnimationActive={false} />
+              <Bar
+                dataKey="expensesFils"
+                name="Expenses"
+                fill={EXPENSES_COLOR.expenses}
+                radius={[4, 4, 0, 0]}
+                maxBarSize={24}
+                activeBar={{ fill: EXPENSES_COLOR.expensesHover }}
+              />
+              <Line
+                type="linear"
+                dataKey="collectedFils"
+                name="Revenue collected"
+                stroke={EXPENSES_COLOR.collected}
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                dot={lineDot(EXPENSES_COLOR.collected)}
+                activeDot={lineActiveDot(EXPENSES_COLOR.collected)}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </Figure>
+      ) : (
+        <EmptyState
+          icon={ReceiptText}
+          title="No expenses or revenue in the last 12 months"
+          description="Each month's spending will be charted here against the money collected from paid invoices. Record a cost with “Add expense”."
         />
       )}
     </ChartCard>

@@ -243,6 +243,51 @@ async function winLead(tx: Tx, leadId: string, from: LeadStatus, reason: string,
 }
 
 /**
+ * How far along the dashboard's status list (New → Quotation sent → Invoice
+ * sent → Goal) a client is. The CRM-only stages count as New.
+ */
+const PROGRESS: Record<Exclude<LeadStatus, "LOST">, number> = {
+  NEW: 0,
+  CONTACTED: 0,
+  QUALIFIED: 0,
+  PROPOSAL: 1,
+  INVOICED: 2,
+  WON: 3,
+};
+
+/**
+ * Moves a client forward when its paperwork does: a quotation sent makes it
+ * "Quotation sent", an invoice sent "Invoice sent", an invoice paid "Goal".
+ * Never moves a client backwards and never touches a cancelled one: that was
+ * someone's decision. Call inside the transaction that changed the document,
+ * after the document's own row lock (the order the header describes). Returns
+ * whether the status changed.
+ */
+export async function advanceClientStatus(
+  tx: Tx,
+  leadId: string | null,
+  to: "PROPOSAL" | "INVOICED" | "WON",
+  reason: string,
+  actor: Actor,
+): Promise<boolean> {
+  if (!leadId) return false;
+  const from = await lockLead(tx, leadId);
+  if (!from || from === "LOST" || PROGRESS[from] >= PROGRESS[to]) return false;
+  if (to === "WON") return winLead(tx, leadId, from, reason, actor);
+  await tx.lead.update({
+    where: { id: leadId },
+    data: { status: to, sortOrder: await sortOrderAtTop(tx, to) },
+  });
+  await logLeadEvent(
+    leadId,
+    `Status changed from ${LEAD_STATUS[from].label} to ${LEAD_STATUS[to].label}${reason}.`,
+    actor?.id ?? null,
+    tx,
+  );
+  return true;
+}
+
+/**
  * Won revenue is summed from the opportunities' expected revenue. When none
  * was entered — website enquiries arrive with only a budget range — the won
  * deal takes its quotation's subtotal, so it doesn't count as AED 0. An

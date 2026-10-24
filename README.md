@@ -222,11 +222,12 @@ strand a visitor on a half-written answer.
 ## Admin dashboard
 
 A private dashboard at **`/admin`**, not linked from anywhere on the public
-site. It currently runs as **one page**: the client dashboard.
+site. It currently runs as **two pages**: the client dashboard and Expenses.
 
 | Page | What it does |
 | --- | --- |
-| `/admin` | The client dashboard: KPI cards, monthly revenue and customer-engagement charts for the last 12 months, and a table of every client who filled in the contact form — their details, WhatsApp and call buttons, a quotation and an invoice button, and a status you can change in place |
+| `/admin` | The client dashboard: five cards (Clients, New, Goal, Project value, Revenue), monthly revenue and customer-engagement charts for the last 12 months, and a table of every client (website enquiries and projects added with "Add project"): their details, WhatsApp and call buttons, a quotation and an invoice button, a status you can change in place, and Remove |
+| `/admin/expenses` | Every cost the business pays, as project costs (linked to a client) or running costs: monthly totals, profit over the last 12 months, a monthly expenses-and-revenue chart, a breakdown by category, a filterable list with add / edit / delete, and a CSV export (`/admin/expenses/export`) |
 | `/admin/billing/quotes/new?leadId=<id>` and `/admin/billing/invoices/new?leadId=<id>` | Create a quotation or tax invoice prefilled from a client (opened from the table) |
 | `/admin/billing/quotes/<id>` and `/admin/billing/invoices/<id>` | View, edit (drafts), print / save as PDF, change the document's status, convert an accepted quote to an invoice |
 | `/admin/account` | Your password and sessions, and the team list |
@@ -236,21 +237,53 @@ the dashboard.
 
 ### Client statuses
 
-The status column uses the team's words. They are labels over the stored
-`LeadStatus` enum, so **no database migration is needed** (and the CRM, when it
-is switched on, reads the same values):
+The status column uses the team's words, in this order:
 
 | Shown as | Stored as | Meaning |
 | --- | --- | --- |
-| New | `NEW` | Enquiry received, not contacted yet |
-| Prospect | `CONTACTED` | Contacted and interested |
-| Follow-up | `QUALIFIED` | Waiting on the next step |
+| New | `NEW` | New enquiry or project, nothing sent yet |
 | Quotation sent | `PROPOSAL` | Quotation with the client |
+| Invoice sent | `INVOICED` | Invoice sent, waiting for payment |
 | Goal | `WON` | Deal closed |
 | Cancel | `LOST` | Not going ahead |
 
-The labels live in `src/lib/admin/labels.ts`. Accepting a quotation marks its
-client **Goal**.
+The labels and the list (`CLIENT_STATUSES`) live in `src/lib/admin/labels.ts`.
+Any status can be set by hand. The paperwork also moves a client forward on its
+own, never backwards (`advanceClientStatus` in `src/lib/admin/deals.ts`):
+
+- marking a draft quotation **sent** moves a New client to **Quotation sent**;
+- marking a draft invoice **sent** moves it to **Invoice sent**;
+- marking an invoice **paid** makes it **Goal**.
+
+None of these moves a cancelled client. Accepting a quotation always makes the
+client **Goal**, even from Cancel, because the client's yes decides it.
+
+Each move is written to the client's timeline. The CRM's own stages
+`CONTACTED` and `QUALIFIED` stay in the enum for the switched-off CRM; the
+migration that added `INVOICED` moved every client in them to New.
+
+### Removing a client
+
+The bin button on a row (**Remove** on phones) asks for confirmation, then
+takes the client off the table and out of the client counts, Project value,
+the engagement chart and the sidebar badge. Nothing is deleted: `Lead.removedAt`
+is set, so the client's quotations, invoices, expenses and timeline stay
+intact, their invoices still count in Revenue and the revenue chart, and
+**Undo** in the message puts them straight back. Lists
+and counts use `ACTIVE_CLIENT` from `src/lib/admin/clients.ts`; a quotation or
+invoice page still shows who it was for. The switched-off modules don't filter
+removed clients yet (see the note in that file before turning one back on).
+
+### Expenses
+
+`/admin/expenses` records what the business spends: the date, amount (AED,
+VAT included), category, what it was for, who was paid, an optional project
+(any client on the dashboard) and notes. A cost without a project is a running
+cost. Categories are listed in `src/lib/admin/expenses.ts`; they are stored as
+plain keys, so a new one needs no migration. Profit on the page is revenue
+collected (the dashboard's definition) minus expenses over the same 12 months.
+Each client's details on the dashboard show its project costs, with a link to
+add one.
 
 ### Switched-off modules
 
@@ -318,7 +351,8 @@ devices" there without changing it. The same page lists the team (read-only).
 3. The notification email includes an **"Open client in dashboard"** button
    linking to that client's row on the dashboard (`/admin?client=<id>#clients`;
    their opportunity page instead while the CRM is switched on). If you are
-   signed out, you are taken to the login page first.
+   signed out, you are taken to the login page first. If the client has been
+   removed since, the dashboard says so.
 
 Saving and emailing are independent: if the database is unavailable the email
 still goes out (flagged as unsaved), and if email fails the lead is still saved.
@@ -330,12 +364,12 @@ can follow later.
 ### The CRM, Odoo-style
 
 - **Pipeline.** Opportunities move through *New → Contacted → Qualified →
-  Proposal → Won* by drag and drop (or the stage bar on the lead page). Each
+  Proposal → Invoice sent → Won* by drag and drop (or the stage bar on the lead page). Each
   card shows its expected revenue, a 0–3 star priority, tags, the salesperson
   and an activity clock: red when a follow-up is overdue, amber when one is due
   today, green when one is planned.
 - **Probability and weighted pipeline.** Every opportunity has a win
-  probability, defaulting to its stage's (10/20/40/60%) unless you set one.
+  probability, defaulting to its stage's (10/20/40/60/80%) unless you set one.
   Expected revenue × probability is the *weighted pipeline* on the overview.
 - **Activities.** Schedule a call, email, meeting, to-do or follow-up on any
   opportunity, with a due date and an assignee. Marking one done asks for
@@ -408,17 +442,19 @@ from your environment; nothing reads it.
    connection string.
 2. In Vercel → Settings → Environment Variables, add `DATABASE_URL`,
    `SESSION_SECRET` and `APP_URL`.
-3. Create or update the tables from your machine. Run this on first deploy
-   **and every time a new migration is added** (for example
-   `20260928090000_crm_pipeline_agreements_admins`, which adds the pipeline
-   fields, activities, service agreements and admin accounts):
+3. Create or update the tables from your machine. Vercel's build does not
+   migrate the database, so run this on first deploy **and every time a new
+   migration is added, before pushing the code that needs it**:
 
    ```bash
    DATABASE_URL="<your neon url>" npx prisma migrate deploy
    ```
 
-   The migration only adds tables and columns (and relaxes a few lead fields
-   to optional), so existing leads, quotations and invoices are kept.
+   The migrations only add tables, columns and enum values, so existing leads,
+   quotations and invoices are kept and the deployed code keeps working
+   meanwhile. One data change is one-way: `20261024120000_statuses_remove_expenses`
+   (Invoice sent, Remove, Expenses) moves clients in Prospect / Follow-up to
+   New.
 
 4. Create at least one admin account against the same database, then redeploy.
    `postinstall` runs `prisma generate` automatically on Vercel.
@@ -440,11 +476,14 @@ npm run db:seed                                  # optional demo data (localhost
 npm run db:studio                                # browse the database
 ```
 
-The demo data covers every pipeline stage, activities that are overdue, due
-today and planned, a lost deal, and a deal won this month with its accepted
-quotation, a service agreement out for signature and the deposit invoice. It
+The demo data covers every dashboard status, activities that are overdue, due
+today and planned, a cancelled deal, a deal won this month with its accepted
+quotation, a service agreement out for signature and the deposit invoice, and
+a year of expenses (running costs plus costs booked to two projects). It
 assigns the demo leads to your existing admin accounts, so create an account
-before seeding. Re-running the seed replaces the previous demo data.
+before seeding. Re-running the seed replaces the previous demo data, including
+anything you added to a demo client; other expenses you entered in the app are
+kept.
 
 ### Security model
 
@@ -467,8 +506,9 @@ before seeding. Re-running the seed replaces the previous demo data.
   (layouts don't re-run on client navigation; Server Actions are public POST
   endpoints), so `requireAdmin()` in `src/lib/admin/dal.ts` is called at the top
   of every admin page and every Server Action, and re-reads the account from
-  the database. `src/proxy.ts` adds an early redirect for signed-out visitors
-  and `noindex` headers on top.
+  the database. The Expenses CSV export (a route handler) checks it too.
+  `src/proxy.ts` adds an early redirect for signed-out visitors and `noindex`
+  headers on top.
 - **Post-login redirects** only accept `/admin/...` paths, so the `?next=`
   parameter can't be used as an open redirect.
 - **Money** is stored as integer fils (1 AED = 100 fils) and VAT as basis points,

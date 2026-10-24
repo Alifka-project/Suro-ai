@@ -13,11 +13,17 @@
  * (src/lib/admin/time.ts), and document numbers run per Dubai calendar year
  * (src/lib/admin/numbering.ts).
  *
- * The story it tells: a pipeline across every stage with owners, priorities,
- * tags and activities (overdue, due today, planned and done); a lost deal; a
- * long-running won engagement with paid invoices; and a deal won this month
- * whose accepted quotation generated a Service Agreement, now out for
- * signature with its deposit invoice.
+ * The story it tells: clients in every dashboard status (New, Quotation sent,
+ * Invoice sent, Goal, Cancel) with owners, priorities, tags and activities
+ * (overdue, due today, planned and done); a cancelled deal; a long-running won
+ * engagement with paid invoices; a deal won this month whose accepted
+ * quotation generated a Service Agreement, now out for signature with its
+ * deposit invoice; and a year of expenses, some booked to those two projects.
+ *
+ * Demo expenses are the ones with no "recorded by" admin (createdById null).
+ * Expenses entered in the app always have one, so a re-run keeps them, except
+ * those booked to a demo client, which go with it (leadId is SetNull, so they
+ * would otherwise turn into running costs).
  */
 import { PrismaClient } from "@prisma/client";
 
@@ -53,16 +59,16 @@ const dayKey = (offset: number) => day(offset).toISOString().slice(0, 10);
 
 // ─── Demo pipeline ───────────────────────────────────────────────────────────
 
-type Stage = "NEW" | "CONTACTED" | "QUALIFIED" | "PROPOSAL" | "WON" | "LOST";
+type Stage = "NEW" | "PROPOSAL" | "INVOICED" | "WON" | "LOST";
 type ActivityKind = "CALL" | "EMAIL" | "MEETING" | "TODO" | "FOLLOW_UP";
 
+/** The dashboard's names for the statuses (src/lib/admin/labels.ts). */
 const STAGE_LABEL: Record<Stage, string> = {
   NEW: "New",
-  CONTACTED: "Contacted",
-  QUALIFIED: "Qualified",
-  PROPOSAL: "Proposal",
-  WON: "Won",
-  LOST: "Lost",
+  PROPOSAL: "Quotation sent",
+  INVOICED: "Invoice sent",
+  WON: "Goal",
+  LOST: "Cancel",
 };
 const ACTIVITY_LABEL: Record<ActivityKind, string> = {
   CALL: "Call",
@@ -120,7 +126,7 @@ const LEADS: DemoLead[] = [
     msg: "Warehouse KPIs are compiled by hand from WMS exports every Monday. We want live dashboards and alerts when picking falls behind.",
     web: true, status: "WON", days: 150, value: 120000, title: "Warehouse KPI dashboards", priority: 2,
     tags: ["Power BI", "Retainer"], close: -128, wonDaysAgo: 128,
-    moves: [[146, "NEW", "CONTACTED"], [140, "CONTACTED", "QUALIFIED"], [135, "QUALIFIED", "PROPOSAL"]],
+    moves: [[135, "NEW", "PROPOSAL"]],
     notes: [[20, "Phase 3 alerts are in UAT. Rashid asked about a support retainer after handover."]],
     activities: [
       { type: "MEETING", summary: "Monthly steering meeting", due: -14, done: { daysAgo: 14, feedback: "On track. UAT sign-off expected next week." } },
@@ -134,7 +140,7 @@ const LEADS: DemoLead[] = [
     msg: "We re-key roughly 400 bills of lading a week into our TMS. Two people spend most of their day on it.",
     web: true, status: "WON", days: 34, value: 180000, title: "B/L intake automation", priority: 3,
     tags: ["Document AI", "TMS"], close: -6, wonDaysAgo: 6,
-    moves: [[30, "NEW", "CONTACTED"], [20, "CONTACTED", "QUALIFIED"], [12, "QUALIFIED", "PROPOSAL"]],
+    moves: [[12, "NEW", "PROPOSAL"]],
     notes: [
       [16, "Discovery call: ~400 B/Ls a week re-keyed into the TMS by two coordinators. Exceptions are the real pain, not the happy path."],
       [9, "Final scope review with Omar and their ops lead. Exception queue stays in phase 1; the customs module is out of scope."],
@@ -151,7 +157,7 @@ const LEADS: DemoLead[] = [
     msg: "Stockouts on fast movers and expiry write-offs on the slow ones. Planning lives in twelve linked workbooks.",
     web: true, status: "PROPOSAL", days: 21, value: 95000, title: "Demand forecasting & planning dashboards", priority: 2,
     tags: ["Forecasting", "Power BI"], probability: 70, close: 14,
-    moves: [[18, "NEW", "CONTACTED"], [10, "CONTACTED", "QUALIFIED"], [3, "QUALIFIED", "PROPOSAL"]],
+    moves: [[3, "NEW", "PROPOSAL"]],
     notes: [[5, "Priya wants the forecast to cover the 300 fastest movers first; slow movers in a second phase."]],
     activities: [
       { type: "CALL", summary: "Qualification call", due: -10, done: { daysAgo: 10, feedback: "Budget confirmed for Q4. Their COO makes the call." } },
@@ -163,9 +169,9 @@ const LEADS: DemoLead[] = [
     industry: "Freight forwarding", city: "Sharjah", country: "United Arab Emirates",
     services: ["Package 4: AI Agents & Intelligent Solutions"], budget: "$15,000 – $50,000",
     msg: "Customers email all day asking where their shipment is. We want WhatsApp answers from our tracking data.",
-    web: true, status: "QUALIFIED", days: 14, value: 60000, title: "WhatsApp shipment status agent", priority: 2,
+    // Invoiced for a paid scoping workshop before the build is quoted.
+    web: true, status: "INVOICED", days: 14, value: 60000, title: "WhatsApp shipment status agent", priority: 2,
     tags: ["Chatbot", "WhatsApp"], close: 30,
-    moves: [[12, "NEW", "CONTACTED"], [7, "CONTACTED", "QUALIFIED"]],
     notes: [[7, "Tracking data is available over REST. Need their rate limits before we scope the agent."]],
     activities: [
       { type: "EMAIL", summary: "Send the discovery summary", due: -7, done: { daysAgo: 7, feedback: "Sent. Daniel forwarded it to their IT lead." } },
@@ -177,9 +183,8 @@ const LEADS: DemoLead[] = [
     industry: "Retail & e-commerce", city: "Dubai", country: "United Arab Emirates",
     services: ["Package 2: Connect", "Package 1: Automate"], budget: "$150,000+",
     msg: "Our ERP, WMS and Shopify do not talk. Orders are copied between them by hand every morning.",
-    web: true, status: "CONTACTED", days: 6, value: 420000, title: "ERP, WMS & Shopify order sync", priority: 3,
+    web: true, status: "NEW", days: 6, value: 420000, title: "ERP, WMS & Shopify order sync", priority: 3,
     tags: ["Integration", "EDI", "Enterprise"], probability: 25, close: 60,
-    moves: [[5, "NEW", "CONTACTED"]],
     notes: [[5, "Intro call: orders re-keyed across three systems every morning. Their CIO is sponsoring the project."]],
     activities: [
       { type: "FOLLOW_UP", summary: "Send the mutual NDA", due: -4 },
@@ -190,7 +195,7 @@ const LEADS: DemoLead[] = [
     key: "oasis", name: "Noura Al Falasi", company: "Oasis Coldline Storage", size: null,
     industry: "Cold chain & storage", city: "Dubai", country: "United Arab Emirates",
     services: [], budget: null, msg: null,
-    web: false, status: "CONTACTED", days: 9, value: 45000, title: "Cold-room temperature alerts", priority: 1,
+    web: false, status: "NEW", days: 9, value: 45000, title: "Cold-room temperature alerts", priority: 1,
     tags: ["Outbound", "IoT"], close: 40,
     notes: [[9, "Met Noura at a logistics meetup. Temperature excursions are logged by hand twice a day; she's keen on automatic alerts. Need her direct email to send a one-pager."]],
     activities: [{ type: "CALL", summary: "Call for the right contact details", due: 1 }],
@@ -227,7 +232,7 @@ const LEADS: DemoLead[] = [
     msg: "Portal data collection from twelve supplier sites.",
     web: true, status: "LOST", days: 44, value: 70000, title: "Supplier portal data collection", priority: 1,
     tags: ["RPA"], close: -20,
-    moves: [[40, "NEW", "CONTACTED"], [33, "CONTACTED", "QUALIFIED"], [27, "QUALIFIED", "PROPOSAL"]],
+    moves: [[27, "NEW", "PROPOSAL"]],
     lost: {
       daysAgo: 20,
       from: "PROPOSAL",
@@ -276,6 +281,7 @@ async function main() {
   // ── Clear the previous demo set ──────────────────────────────────────────
   const demo = { source: "demo" };
   await db.$transaction([
+    db.expense.deleteMany({ where: { OR: [{ createdById: null }, { lead: demo }] } }),
     db.task.deleteMany({ where: { project: { lead: demo } } }),
     db.lineItem.deleteMany({ where: { OR: [{ quote: { lead: demo } }, { invoice: { lead: demo } }] } }),
     db.invoice.deleteMany({ where: { lead: demo } }),
@@ -361,12 +367,12 @@ async function main() {
       timeline.push({ leadId: lead.id, kind: "EVENT", body, createdAt: ago(daysAgo, minutes), authorId });
 
     if (l.web) event(l.days, "Enquiry received via the website form.", null);
-    else event(l.days, `Opportunity created in ${STAGE_LABEL[l.status]}.`);
+    else event(l.days, `Opportunity created manually as ${STAGE_LABEL[l.status]}.`);
     for (const [daysAgo, from, to] of l.moves ?? []) {
-      event(daysAgo, `Stage changed from ${STAGE_LABEL[from]} to ${STAGE_LABEL[to]}.`);
+      event(daysAgo, `Status changed from ${STAGE_LABEL[from]} to ${STAGE_LABEL[to]}.`);
     }
     if (l.lost) {
-      event(l.lost.daysAgo, `Marked as lost (was ${STAGE_LABEL[l.lost.from]}). Reason: ${l.lost.reason}.\n${l.lost.note}`);
+      event(l.lost.daysAgo, `Status changed from ${STAGE_LABEL[l.lost.from]} to ${STAGE_LABEL.LOST}.\n${l.lost.note}`);
     }
     for (const [daysAgo, body] of l.notes ?? []) {
       timeline.push({ leadId: lead.id, kind: "NOTE", body, createdAt: ago(daysAgo, 30), authorId: owner });
@@ -424,7 +430,7 @@ async function main() {
   quoteCount++;
   timeline.push(
     { leadId: palmgate, kind: "EVENT", body: `Quotation ${palmgateQuote.number} accepted.`, createdAt: ago(128), authorId: palmgateOwner },
-    { leadId: palmgate, kind: "EVENT", body: `Stage changed from Proposal to Won — quotation ${palmgateQuote.number} accepted.`, createdAt: ago(128, 1), authorId: palmgateOwner },
+    { leadId: palmgate, kind: "EVENT", body: `Stage changed from Quotation sent to Won — quotation ${palmgateQuote.number} accepted.`, createdAt: ago(128, 1), authorId: palmgateOwner },
   );
   const palmgateProject = await db.project.create({
     data: {
@@ -567,7 +573,7 @@ async function main() {
   const q = gulflineQuote.number;
   timeline.push(
     { leadId: gulfline, kind: "EVENT", body: `Quotation ${q} accepted.`, createdAt: ago(6), authorId: gulflineOwner },
-    { leadId: gulfline, kind: "EVENT", body: `Stage changed from Proposal to Won — quotation ${q} accepted.`, createdAt: ago(6, 1), authorId: gulflineOwner },
+    { leadId: gulfline, kind: "EVENT", body: `Stage changed from Quotation sent to Won — quotation ${q} accepted.`, createdAt: ago(6, 1), authorId: gulflineOwner },
     { leadId: gulfline, kind: "EVENT", body: `Service agreement ${agreement.number} generated from quotation ${q}.`, createdAt: ago(6, 2), authorId: gulflineOwner },
     { leadId: gulfline, kind: "EVENT", body: `Project “${gulflineProject.name}” created from service agreement ${agreement.number}.`, createdAt: ago(6, 3), authorId: gulflineOwner },
     { leadId: gulfline, kind: "EVENT", body: `Service agreement ${agreement.number} sent for signature.`, createdAt: ago(5), authorId: gulflineOwner },
@@ -587,6 +593,20 @@ async function main() {
   });
   quoteCount++;
 
+  // Invoice sent: a paid scoping workshop, billed before the build is quoted.
+  const workshop = await db.invoice.create({
+    data: {
+      number: invoiceNo.next(), leadId: ids.northwind, status: "SENT", issueDate: day(-7), dueDate: day(7),
+      clientName: "Daniel Okafor", clientEmail: "daniel@example.com", clientCompany: "Northwind Freight",
+      items: { create: withPositions([{ description: "Scoping workshop and tracking API review", quantity: 1, unitPriceFils: aed(7500) }]) },
+    },
+  });
+  invoiceCount++;
+  timeline.push({
+    leadId: ids.northwind, kind: "EVENT", createdAt: ago(7),
+    body: `Status changed from New to Invoice sent — invoice ${workshop.number} sent.`, authorId: ownerOf.get("northwind") ?? null,
+  });
+
   // An overdue invoice from an earlier engagement with the client since lost, for the finance view.
   await db.invoice.create({
     data: {
@@ -600,6 +620,36 @@ async function main() {
   await db.activity.createMany({ data: activities });
   await db.note.createMany({ data: timeline });
 
+  // ── Expenses: a year of running costs, and costs booked to two projects ──
+  // [days ago, AED, category key (src/lib/admin/expenses.ts), description, paid to, project]
+  const costs: [number, number, string, string, string | null, string | null][] = [
+    ...Array.from({ length: 12 }, (_, m): [number, number, string, string, string | null, string | null] =>
+      [m * 30 + 3, 1250, "software", "Office suite and email, 5 seats", "Software subscription", null]),
+    ...Array.from({ length: 12 }, (_, m): [number, number, string, string, string | null, string | null] =>
+      [m * 30 + 9, 3500, "office", "Coworking desks, Dubai", "Coworking space", null]),
+    [210, 12500, "licences", "Trade licence renewal", "Free zone authority", null],
+    [150, 2400, "hosting", "Cloud hosting credits", "Cloud provider", null],
+    [58, 850, "marketing", "LinkedIn campaign: logistics decision makers", "LinkedIn", null],
+    [33, 1890, "equipment", "Monitor and laptop dock", "Electronics store", null],
+    [12, 450, "bank", "Bank charges, quarterly", "Bank", null],
+    [118, 6000, "contractors", "Freelance Power BI developer: data model", "Freelance developer", "palmgate"],
+    [70, 9000, "contractors", "Freelance Power BI developer: dashboards", "Freelance developer", "palmgate"],
+    [20, 1500, "software", "Power BI Pro licences, 3 months", "Software subscription", "palmgate"],
+    [4, 2200, "software", "Document AI test credits", "Cloud provider", "gulfline"],
+    [2, 180, "travel", "Taxi to the client's Jebel Ali site", null, "gulfline"],
+  ];
+  await db.expense.createMany({
+    data: costs.map(([daysAgo, amount, category, description, vendor, project]) => ({
+      date: day(-daysAgo),
+      createdAt: ago(daysAgo),
+      amountFils: aed(amount),
+      category,
+      description,
+      vendor,
+      leadId: project ? ids[project] : null,
+    })),
+  });
+
   // Keep the live counters ahead of every number the seed used.
   await raiseCounter("quote", quoteNo.last());
   await raiseCounter("invoice", invoiceNo.last());
@@ -607,7 +657,8 @@ async function main() {
 
   console.log(
     `Seeded ${LEADS.length} demo leads (${activities.length} activities, ${timeline.length} timeline entries), ` +
-      `${quoteCount} quotes, ${invoiceCount} invoices, 1 service agreement (${agreement.number}), 2 projects. ` +
+      `${quoteCount} quotes, ${invoiceCount} invoices, 1 service agreement (${agreement.number}), 2 projects, ` +
+      `${costs.length} expenses. ` +
       (admins.length
         ? `Leads are owned by ${admins.length} admin ${admins.length === 1 ? "account" : "accounts"}.`
         : "No admin accounts yet, so the leads have no owner."),

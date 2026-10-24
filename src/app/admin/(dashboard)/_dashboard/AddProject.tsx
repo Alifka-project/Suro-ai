@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState, useTransition, type FormEvent } fro
 import { useRouter } from "next/navigation";
 import { Loader2, Plus, X } from "lucide-react";
 import { buttonClass, cn, inputClass, textareaClass } from "@/components/admin/ui";
-import { LEAD_PIPELINE, LEAD_STATUS } from "@/lib/admin/labels";
+import { CLIENT_STATUSES, LEAD_STATUS } from "@/lib/admin/labels";
 import { NOT_SURE_OPTION, PACKAGES } from "@/lib/packages";
 import { addProject, type AddProjectState } from "./actions";
 
@@ -283,11 +283,11 @@ export function AddProjectButton({ className }: { className?: string }) {
                 <select
                   id={fieldId("status")}
                   name="status"
-                  defaultValue="CONTACTED"
+                  defaultValue="NEW"
                   className={cn(inputClass, "appearance-auto pr-2")}
                   {...describe("status")}
                 >
-                  {LEAD_PIPELINE.map((s) => (
+                  {CLIENT_STATUSES.map((s) => (
                     <option key={s} value={s}>
                       {LEAD_STATUS[s].label}
                     </option>

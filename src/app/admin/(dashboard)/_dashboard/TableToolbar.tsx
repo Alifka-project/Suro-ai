@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { LeadStatus } from "@prisma/client";
 import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import { buttonClass, cn, inputClass } from "@/components/admin/ui";
-import { LEAD_PIPELINE, LEAD_STATUS, TONE_DOT } from "@/lib/admin/labels";
+import { CLIENT_STATUSES, LEAD_STATUS, TONE_DOT } from "@/lib/admin/labels";
 import type { StatusCount } from "./types";
 
 /*
@@ -93,7 +93,7 @@ export function TableStatusFilter({
   const byStatus = new Map(counts.map((c) => [c.status, c.count]));
   const chips: { key: string; label: string; count: number; status: LeadStatus | null; dot?: string; hint?: string }[] = [
     { key: "ALL", label: "All", count: all, status: null },
-    ...LEAD_PIPELINE.map((s) => ({
+    ...CLIENT_STATUSES.map((s) => ({
       key: s,
       label: LEAD_STATUS[s].label,
       count: byStatus.get(s) ?? 0,

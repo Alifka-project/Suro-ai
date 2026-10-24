@@ -1,4 +1,6 @@
 import { Sidebar } from "@/components/admin/Sidebar";
+import { ACTIVE_CLIENT } from "@/lib/admin/clients";
+import { NEW_STATUSES } from "@/lib/admin/labels";
 import { requireAdmin } from "@/lib/admin/dal";
 import { moduleEnabled } from "@/lib/admin/modules";
 import { startOfBusinessDay } from "@/lib/admin/time";
@@ -17,8 +19,8 @@ import { db } from "@/lib/db";
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const admin = await requireAdmin();
   const [newLeads, overdueActivities] = await Promise.all([
-    // Clients who filled in the form and haven't been contacted yet.
-    db.lead.count({ where: { status: "NEW" } }),
+    // Clients on the list with nothing sent to them yet (status New).
+    db.lead.count({ where: { ...ACTIVE_CLIENT, status: { in: [...NEW_STATUSES] } } }),
     // Same rule as the Activities planner: open, due before today began on the
     // business clock, on an opportunity that is still in play.
     moduleEnabled("crm")

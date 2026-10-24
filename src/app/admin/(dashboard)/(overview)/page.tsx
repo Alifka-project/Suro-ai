@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import type { LeadStatus } from "@prisma/client";
 import { PageHeader } from "@/components/admin/ui";
 import { requireAdmin } from "@/lib/admin/dal";
-import { LEAD_PIPELINE } from "@/lib/admin/labels";
+import { isClientStatus } from "@/lib/admin/labels";
 import { formatMoney } from "@/lib/admin/money";
 import { formatBusinessDate } from "@/lib/admin/time";
 import { EngagementChart, RevenueChart } from "../_dashboard/charts";
@@ -14,10 +13,11 @@ import type { ClientFilters, EngagementPoint, RevenuePoint } from "../_dashboard
 export const metadata: Metadata = { title: "Dashboard" };
 
 /*
- * The admin's one page: five headline figures, two monthly charts and the
- * table of every client who filled in the enquiry form. The CRM, projects,
- * billing lists and full analytics are switched off in src/lib/admin/modules.ts
- * (kept in the codebase, not removed).
+ * The admin's main page: five headline figures, two monthly charts and the
+ * table of every client (website enquiries and projects added by hand). The
+ * other page is Expenses. The CRM, projects, billing lists and full analytics
+ * are switched off in src/lib/admin/modules.ts (kept in the codebase, not
+ * removed).
  *
  * Served at /admin. It sits in the (overview) route group so its loading.tsx
  * skeleton covers this page only: a loading.tsx directly in (dashboard) would
@@ -34,10 +34,6 @@ function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function isLeadStatus(value: string | undefined): value is LeadStatus {
-  return value !== undefined && (LEAD_PIPELINE as readonly string[]).includes(value);
-}
-
 /** Anything malformed in the URL falls back to the default instead of failing the page. */
 function parseFilters(sp: SearchParams): ClientFilters {
   const q = (first(sp.q) ?? "").trim().slice(0, 100).trim();
@@ -46,7 +42,7 @@ function parseFilters(sp: SearchParams): ClientFilters {
   const client = first(sp.client)?.trim();
   return {
     q,
-    status: isLeadStatus(status) ? status : null,
+    status: isClientStatus(status) ? status : null,
     page: Number.isSafeInteger(page) && page >= 1 ? page : 1,
     focus: client && CLIENT_ID.test(client) ? client : null,
   };

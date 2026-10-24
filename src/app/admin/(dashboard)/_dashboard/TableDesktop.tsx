@@ -14,6 +14,7 @@ import {
   sourceMarker,
 } from "./ClientCells";
 import { ClientDetails } from "./ClientDetails";
+import { RemoveButton } from "./RemoveButton";
 import { StatusSelect } from "./StatusSelect";
 import type { ClientRow } from "./types";
 
@@ -52,14 +53,16 @@ export function TableDesktop({
       </caption>
       <colgroup>
         {/* Sized for the narrowest table (960px, at a 1280px window): the
-            dates, document numbers and the longest status label fit unclipped. */}
-        <col className="w-[19%]" />
-        <col className="w-[16.5%]" />
-        <col className="w-[12%]" />
-        <col className="w-[10.5%]" />
-        <col className="w-[12.25%]" />
-        <col className="w-[12.25%]" />
+            dates, document numbers and the longest status label fit unclipped,
+            and the last column holds the 32px Remove button. */}
         <col className="w-[17.5%]" />
+        <col className="w-[14.5%]" />
+        <col className="w-[11.5%]" />
+        <col className="w-[10%]" />
+        <col className="w-[12.25%]" />
+        <col className="w-[12.25%]" />
+        <col className="w-[17%]" />
+        <col className="w-[5%]" />
       </colgroup>
       <thead>
         <tr>
@@ -81,8 +84,11 @@ export function TableDesktop({
           <th scope="col" className={TH}>
             Invoice
           </th>
-          <th scope="col" className={cn(TH, "pr-4")}>
+          <th scope="col" className={TH}>
             Status
+          </th>
+          <th scope="col" className={cn(TH, "pl-0 pr-3")}>
+            <span className="sr-only">Remove</span>
           </th>
         </tr>
       </thead>
@@ -212,14 +218,20 @@ export function TableDesktop({
                   <DocumentCell kind="invoice" row={row} />
                 </td>
 
-                <td className={cn(TD, band, !open && rule, "pr-4")}>
+                <td className={cn(TD, band, !open && rule)}>
                   <StatusSelect leadId={row.id} name={row.fullName} status={row.status} />
+                </td>
+
+                <td className={cn(TD, band, !open && rule, "pl-0 pr-3")}>
+                  <div className="flex justify-end">
+                    <RemoveButton row={row} variant="icon" />
+                  </div>
                 </td>
               </tr>
 
               <tr id={detailsId} hidden={!open}>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   className={cn(
                     band,
                     rule,

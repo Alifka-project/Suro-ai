@@ -1,7 +1,9 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { Detail, cn } from "@/components/admin/ui";
 import { formatDateTime } from "@/lib/admin/labels";
 import { formatMoney } from "@/lib/admin/money";
+import { expensesHref } from "../expenses/_lib/filters";
 import { ContactButtons, ServiceList, locationOf, relativeTime, sourceMarker } from "./ClientCells";
 import type { ClientRow } from "./types";
 
@@ -96,6 +98,24 @@ export function ClientDetails({ row, now, className }: { row: ClientRow; now: st
             <Detail label="Phone">{row.phone ? <span className="tabular-nums">{row.phone}</span> : null}</Detail>
             <Detail label="Documents">
               {plural(row.quoteCount, "quotation", "quotations")} · {plural(row.invoiceCount, "invoice", "invoices")}
+            </Detail>
+            <Detail label="Project costs">
+              {row.costCount > 0 ? (
+                <Link
+                  href={expensesHref({ project: row.id })}
+                  className="text-abyss-600 underline-offset-2 hover:underline"
+                >
+                  {formatMoney(row.costFils)} · {plural(row.costCount, "expense", "expenses")}
+                </Link>
+              ) : (
+                <span className="text-ink-550">None recorded</span>
+              )}
+              <Link
+                href={`/admin/expenses?project=${encodeURIComponent(row.id)}&add=1`}
+                className="ml-2 whitespace-nowrap text-[0.8rem] font-semibold text-abyss-600 underline-offset-2 hover:underline"
+              >
+                Add a cost<span className="sr-only"> for {row.fullName}</span>
+              </Link>
             </Detail>
             <Detail label="Source">{source ?? "Website form"}</Detail>
           </dl>

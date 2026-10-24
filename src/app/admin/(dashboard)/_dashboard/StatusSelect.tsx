@@ -4,7 +4,7 @@ import { useId, useRef, useState, type KeyboardEvent } from "react";
 import type { LeadStatus } from "@prisma/client";
 import { ChevronDown, Loader2 } from "lucide-react";
 import { cn } from "@/components/admin/ui";
-import { LEAD_PIPELINE, LEAD_STATUS, TONE_DOT, type Tone } from "@/lib/admin/labels";
+import { CLIENT_STATUSES, LEAD_STATUS, TONE_DOT, isClientStatus, type ClientStatus, type Tone } from "@/lib/admin/labels";
 import { useClientStatus } from "./StatusProvider";
 
 /** Tinted field per status tone. Text colours are the AA-safe shades used by the badges. */
@@ -18,8 +18,6 @@ const FIELD_TONE: Record<Tone, { field: string; text: string }> = {
   amber: { field: "bg-amber-400/15 ring-amber-400/40", text: "text-amber-700" },
   red: { field: "bg-red-500/10 ring-red-500/30", text: "text-red-600" },
 };
-
-const isLeadStatus = (value: string): value is LeadStatus => (LEAD_PIPELINE as readonly string[]).includes(value);
 
 /**
  * A native select, tinted like the status badge, that changes the client's
@@ -54,7 +52,7 @@ export function StatusSelect({
   const hintId = useId();
 
   // The status picked with the keyboard on the closed select, not saved yet.
-  const [draft, setDraft] = useState<LeadStatus | null>(null);
+  const [draft, setDraft] = useState<ClientStatus | null>(null);
   // Drop a draft that no longer means anything: a save started (an Undo from
   // the toast, say), or the saved status caught up with it (render-time sync).
   const stale = draft !== null && (pending || draft === shown);
@@ -62,6 +60,9 @@ export function StatusSelect({
   const unsaved = stale ? null : draft;
   const value = unsaved ?? shown;
   const meta = LEAD_STATUS[value];
+  // A CRM-only stage (none should be left) still shows as itself instead of
+  // the select silently displaying the first option.
+  const options: readonly LeadStatus[] = isClientStatus(shown) ? CLIENT_STATUSES : [...CLIENT_STATUSES, shown];
 
   // True from a key event until the end of its task. A `change` the key causes
   // on the closed select arrives in that same task (arrow keys from keydown,
@@ -125,9 +126,15 @@ export function StatusSelect({
           }}
           onChange={(e) => {
             const to = e.target.value;
-            if (pending || !isLeadStatus(to)) return;
+            if (pending) return;
+            // Back to the saved status, even a CRM-only one: nothing to save.
+            if (to === shown) {
+              setDraft(null);
+              return;
+            }
+            if (!isClientStatus(to)) return;
             if (keyStep.current) {
-              setDraft(to === shown ? null : to);
+              setDraft(to);
               return;
             }
             setDraft(null);
@@ -149,7 +156,7 @@ export function StatusSelect({
             pending && "cursor-progress",
           )}
         >
-          {LEAD_PIPELINE.map((s) => (
+          {options.map((s) => (
             // Explicit colours: some platforms paint the option list with the select's tint.
             <option key={s} value={s} className="bg-white text-ink-900">
               {LEAD_STATUS[s].label}
