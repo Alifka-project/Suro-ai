@@ -442,9 +442,11 @@ from your environment; nothing reads it.
    connection string.
 2. In Vercel → Settings → Environment Variables, add `DATABASE_URL`,
    `SESSION_SECRET` and `APP_URL`.
-3. Create or update the tables from your machine. Vercel's build does not
-   migrate the database, so run this on first deploy **and every time a new
-   migration is added, before pushing the code that needs it**:
+3. Vercel's build runs `npm run vercel-build`, which applies any new
+   migration (`prisma migrate deploy`) before `next build`, so every push
+   migrates the database first. A migration that fails fails the build, and the
+   previous deployment stays live. To migrate by hand instead (first deploy, or
+   another host):
 
    ```bash
    DATABASE_URL="<your neon url>" npx prisma migrate deploy
