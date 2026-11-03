@@ -29,13 +29,14 @@ pitch.
 | # | Section | File | Anchor |
 | --- | --- | --- | --- |
 | 1 | Hero: headline, value pillars, solution console | `Hero.tsx` | `#top` |
-| 2 | Running capability badges | `CapabilityMarquee.tsx` | — |
-| 3 | Pain points | `PainPoints.tsx` | `#pain-points` |
-| 4 | Technology-agnostic approach | `Approach.tsx` | `#approach` |
-| 5 | Business functions | `BusinessFunctions.tsx` | `#functions` |
-| 6 | Services: packages 0–9 | `Services.tsx` | `#services`, each package `#service-<id>` |
-| 7 | About / profile | `About.tsx` | `#about` |
-| 8 | FAQ | `Faq.tsx` | `#faq` |
+| 2 | Films: short films of work we built. The section holds still while the visitor scrolls through them, then the page moves on | `FilmTour.tsx` | `#films` |
+| 3 | Running capability badges | `CapabilityMarquee.tsx` | — |
+| 4 | Pain points | `PainPoints.tsx` | `#pain-points` |
+| 5 | Technology-agnostic approach | `Approach.tsx` | `#approach` |
+| 6 | Business functions | `BusinessFunctions.tsx` | `#functions` |
+| 7 | Services: packages 0–9 | `Services.tsx` | `#services`, each package `#service-<id>` |
+| 8 | About / profile | `About.tsx` | `#about` |
+| 9 | FAQ: the five most asked questions | `Faq.tsx` | `#faq` |
 | — | Footer with the contact form | `src/components/layout/Footer.tsx`, `ContactForm.tsx` | `#contact` |
 
 ### Where the content lives
@@ -48,6 +49,7 @@ contact form, the CRM and the search-engine data can't drift apart:
 | `src/lib/site.ts` | Site URL, brand name, tagline and descriptor, the three value pillars, contact details (email, WhatsApp, city), the booking link, the profile line and the only published figures, section anchors |
 | `src/lib/packages.ts` | The ten service packages (0–9): promise, what each covers, example flows, who it is best for. `formLabel` ("Package 1: Automate") is what the contact form stores on a lead and what a service agreement prints as its package reference |
 | `src/lib/faq-content.ts` | FAQ questions and answers. Plain text, because the same strings are published as structured data |
+| `src/lib/films.ts` | The films under the hero: title, caption and files for each, in playing order. How to add one is at the top of the file and in `public/media/README.md` |
 | `src/lib/contact-intent.ts` | How "Talk to us" and "Book a call" buttons pre-fill the contact form |
 
 Copy used by only one section lives in that section's file.
@@ -63,7 +65,7 @@ numbers, client names or testimonials without the client's written sign-off.
 | **WhatsApp number.** `CONTACT.whatsapp` is `null`, so every WhatsApp link is hidden rather than showing a made-up number. Set it in international format (`"+971 50 123 4567"`) and the links appear, and the number is added to the structured data. | `src/lib/site.ts` |
 | **Booking page.** Without `NEXT_PUBLIC_BOOKING_URL`, "Book a call" opens the contact form with "Video call" preselected. | Vercel env |
 | **Domain.** Set `NEXT_PUBLIC_SITE_URL` once a custom domain points at this Vercel project. | Vercel env |
-| **Intro video (optional).** Drop an MP4 at `public/media/intro.mp4` (and a still at `public/media/intro-poster.jpg` if you have one). The About section checks for the file and switches from its brand panel to the player, with no code change. For anything above ~15 MB, host it externally and change `VIDEO_SRC` in `About.tsx`. | `public/media/` |
+| **Films (optional).** Three short films of the delivery control tower play under the hero. To swap or add films, put the files in `public/media/films/` and list them in `src/lib/films.ts`; each film adds one step to the section. Steps are in `public/media/README.md`. | `src/lib/films.ts` |
 
 ### Environment variables for the landing page
 
@@ -212,7 +214,8 @@ Reusable pieces: `AuroraField` (the animated background), `SpotlightCard`
 
 Every decorative animation is disabled under `prefers-reduced-motion`, and
 anything that types or counts up renders its final value immediately in that
-mode.
+mode. The films don't play by themselves in that mode either: each shows its
+still with a play button.
 Content is never gated on an animation completing — the hero's blueprint and CTA
 reveal on a timer, not on the typing finishing, so a backgrounded tab can't
 strand a visitor on a half-written answer.
