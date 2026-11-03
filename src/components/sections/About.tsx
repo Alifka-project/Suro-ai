@@ -1,31 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { MotionConfig, motion } from "framer-motion";
-import { Pause, Play, Volume2, VolumeX } from "lucide-react";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { Orb } from "@/components/ui/AuroraField";
 import { easeOutExpo, fadeUp, inView, stagger } from "@/lib/motion";
 import { BRAND, PROFILE, SECTION_IDS, VALUE_PILLARS } from "@/lib/site";
 
 /**
- * Drop the intro film at public/media/intro.mp4 (plus an optional poster at
- * public/media/intro-poster.jpg) and it plays here. Until then the frame shows
- * a brand panel instead of an empty player.
+ * Who the client will work with: the profile line, the published figures and
+ * a brand panel. The films are in their own section under the hero
+ * (FilmTour), so this frame no longer takes a video.
  */
-const VIDEO_SRC = "/media/intro.mp4";
-const POSTER_SRC = "/media/intro-poster.jpg";
-
-/** Whether the film (and its poster) exist; null while the browser is still checking. */
-type FilmFiles = { video: boolean; poster: boolean };
-
-/**
- * `hasFilm` / `hasPoster` are optional. When the page knows (for example from
- * a server-side check of public/media), passing them skips the browser probe
- * and its 404 request when no film exists. When omitted, the browser checks.
- */
-export function About({ hasFilm, hasPoster }: { hasFilm?: boolean; hasPoster?: boolean } = {}) {
+export function About() {
   return (
     <section
       id={SECTION_IDS.about}
@@ -89,7 +76,7 @@ export function About({ hasFilm, hasPoster }: { hasFilm?: boolean; hasPoster?: b
               </motion.dl>
             </div>
 
-            {/* ── Film ─────────────────────────────────────────────── */}
+            {/* ── Brand panel ──────────────────────────────────────── */}
             <motion.div
               initial={{ opacity: 0, y: 30, scale: 0.97 }}
               whileInView={{ opacity: 1, y: 0, scale: 1 }}
@@ -97,7 +84,9 @@ export function About({ hasFilm, hasPoster }: { hasFilm?: boolean; hasPoster?: b
               transition={{ duration: 0.9, ease: easeOutExpo }}
               className="relative min-w-0"
             >
-              <IntroFilm hasFilm={hasFilm} hasPoster={hasPoster} />
+              <div className="relative aspect-video overflow-hidden rounded-[1.5rem] glass-strong sm:rounded-[2rem]">
+                <BrandPanel />
+              </div>
             </motion.div>
           </div>
         </div>
@@ -108,148 +97,7 @@ export function About({ hasFilm, hasPoster }: { hasFilm?: boolean; hasPoster?: b
 
 /* ────────────────────────────────────────────────────────────────────────── */
 
-function IntroFilm({ hasFilm, hasPoster }: { hasFilm?: boolean; hasPoster?: boolean }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [probed, setProbed] = useState<FilmFiles | null>(null);
-  const [failed, setFailed] = useState(false);
-  const [playing, setPlaying] = useState(false);
-  const [muted, setMuted] = useState(true);
-
-  const known: FilmFiles | null =
-    hasFilm === undefined ? probed : { video: hasFilm, poster: hasFilm && Boolean(hasPoster) };
-  // Only a confirmed file mounts the player; checking, missing or a playback
-  // error all show the brand panel. The server HTML therefore never points
-  // crawlers or visitors at a video that may not exist.
-  const ready = Boolean(known?.video) && !failed;
-  const posterReady = Boolean(known?.poster);
-
-  /**
-   * A HEAD request decides whether the film exists, rather than waiting on a
-   * media `error` event — those don't fire consistently across browsers when
-   * a source 404s. The poster is only probed once the film is confirmed.
-   */
-  useEffect(() => {
-    if (hasFilm !== undefined) return;
-    let cancelled = false;
-
-    const probe = async (url: string) => {
-      try {
-        const res = await fetch(url, { method: "HEAD", cache: "no-store" });
-        return res.ok;
-      } catch {
-        return false;
-      }
-    };
-
-    void (async () => {
-      const video = await probe(VIDEO_SRC);
-      const poster = video ? await probe(POSTER_SRC) : false;
-      if (!cancelled) setProbed({ video, poster });
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [hasFilm]);
-
-  function toggle() {
-    const v = videoRef.current;
-    if (!v) return;
-    if (v.paused) {
-      void v
-        .play()
-        .then(() => setPlaying(true))
-        .catch(() => setFailed(true));
-    } else {
-      v.pause();
-      setPlaying(false);
-    }
-  }
-
-  function toggleMute() {
-    const v = videoRef.current;
-    if (!v) return;
-    v.muted = !v.muted;
-    setMuted(v.muted);
-  }
-
-  return (
-    <div className="group relative aspect-video overflow-hidden rounded-[1.5rem] glass-strong sm:rounded-[2rem]">
-      {ready ? (
-        <>
-          {/* Brand wash under the video while there is no poster image */}
-          {!posterReady && !playing && (
-            <div
-              aria-hidden="true"
-              className="absolute inset-0 bg-linear-to-br from-abyss-600 via-azure-500 to-lilac-500"
-            />
-          )}
-
-          {/* `src` on the element itself, not a <source> child: a failing
-              <source> fires its own error event that never reaches onError. */}
-          <video
-            ref={videoRef}
-            src={VIDEO_SRC}
-            poster={posterReady ? POSTER_SRC : undefined}
-            aria-label={`${BRAND.name} introduction`}
-            className="relative h-full w-full object-cover"
-            playsInline
-            muted={muted}
-            preload="metadata"
-            onError={() => setFailed(true)}
-            onEnded={() => setPlaying(false)}
-            onPause={() => setPlaying(false)}
-            onPlay={() => setPlaying(true)}
-          />
-
-          <button
-            type="button"
-            onClick={toggle}
-            aria-label={playing ? "Pause the introduction video" : "Play the introduction video"}
-            className="absolute inset-0 flex items-center justify-center bg-ink-900/10 transition-colors duration-500 hover:bg-ink-900/20"
-          >
-            <span
-              className={`relative flex h-16 w-16 items-center justify-center rounded-full glass-strong transition-all duration-500 sm:h-20 sm:w-20 ${
-                playing
-                  ? "scale-90 opacity-0 group-focus-within:scale-100 group-focus-within:opacity-100 group-hover:scale-100 group-hover:opacity-100"
-                  : "scale-100 opacity-100"
-              }`}
-            >
-              {!playing && (
-                <span
-                  aria-hidden="true"
-                  className="absolute inset-0 rounded-full bg-white/60 motion-safe:animate-pulse-ring"
-                />
-              )}
-              {playing ? (
-                <Pause className="relative h-6 w-6 text-ink-900" aria-hidden="true" />
-              ) : (
-                <Play className="relative ml-1 h-6 w-6 fill-ink-900 text-ink-900" aria-hidden="true" />
-              )}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={toggleMute}
-            aria-label={muted ? "Unmute the video" : "Mute the video"}
-            className="absolute bottom-3 right-3 flex h-10 w-10 items-center justify-center rounded-full glass transition-transform duration-300 hover:scale-110"
-          >
-            {muted ? (
-              <VolumeX className="h-4 w-4 text-ink-800" aria-hidden="true" />
-            ) : (
-              <Volume2 className="h-4 w-4 text-ink-800" aria-hidden="true" />
-            )}
-          </button>
-        </>
-      ) : (
-        <BrandPanel />
-      )}
-    </div>
-  );
-}
-
-/** Shown in the frame until a film exists: the mark, the name and the three pillars. */
+/** The mark, the name and the three pillars. */
 function BrandPanel() {
   return (
     <div

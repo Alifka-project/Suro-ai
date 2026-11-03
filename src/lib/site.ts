@@ -78,6 +78,7 @@ export const PROFILE = {
 
 /** Section anchors, used by the nav, the footer and in-page CTAs. */
 export const SECTION_IDS = {
+  films: "films",
   painPoints: "pain-points",
   approach: "approach",
   functions: "functions",

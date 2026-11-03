@@ -35,7 +35,7 @@ export function Faq() {
               Frequently asked <span className="text-gradient">questions</span>
             </>
           }
-          lede="Where to start, how pricing works and what happens after handover."
+          lede="Where to start, who we work with and what happens after handover."
         />
 
         <RevealGroup gap={0.05} className="mx-auto mt-10 max-w-3xl space-y-2.5">

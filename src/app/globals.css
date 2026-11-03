@@ -541,6 +541,15 @@
   [data-fn-panel] + [data-fn-panel] {
     margin-top: 1rem;
   }
+
+  /* Films: scrolling can't switch films without JS, so drop the pinned
+     scroll length and let the first film's still sit in the page. */
+  [data-film-track] {
+    height: auto !important;
+  }
+  [data-film-stage] {
+    position: relative !important;
+  }
 }
 
 /* ==========================================================================
