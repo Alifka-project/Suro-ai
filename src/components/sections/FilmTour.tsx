@@ -84,8 +84,11 @@ function Tour() {
 
   /** The section covers the middle of the screen: films may play. */
   const inView = useInView(trackRef, { margin: "-30% 0px -30% 0px" });
-  /** The section is within a screen of the viewport. */
-  const withinReach = useInView(trackRef, { margin: "100% 0px 100% 0px" });
+  /**
+   * The section is on screen below the fixed nav (88px, the page's
+   * scroll-padding-top), or within a screen under the viewport.
+   */
+  const withinReach = useInView(trackRef, { margin: "-88px 0px 100% 0px" });
 
   // Whether the scroll has stayed under three screens a second for 100ms. A
   // link's smooth jump (Talk to us, the nav, a deep link) crosses the section
@@ -104,23 +107,40 @@ function Tour() {
       calmTimer.current = setTimeout(() => setCalm(true), 100);
     }
   });
-  // A link's jump (Talk to us, the nav, a deep link to #contact) can start
-  // slowly enough to pass for calm, so the films also wait while one is
-  // under way: from the click, or the load, until its scroll comes to rest.
+  // A link's jump (Talk to us, the nav, Back, a deep link to #contact) can
+  // start slowly enough to pass for calm, so the films also wait while one is
+  // under way: from the click, the load or the history step until its scroll
+  // has rested for 150ms, or for 1s if it never scrolls. A background tab
+  // holds the jump's scroll until it is shown, so the wait only runs while
+  // the tab is visible. A jump that lands off the films also resets `calm`:
+  // they then wait for the visitor's own next scroll.
   const [jumping, setJumping] = useState(false);
   useEffect(() => {
     let rest: ReturnType<typeof setTimeout> | undefined;
-    const settle = () => {
+    let pending = false;
+    const end = () => {
+      pending = false;
+      window.removeEventListener("scroll", settle);
+      setJumping(false);
+      const r = trackRef.current?.getBoundingClientRect();
+      if (r && r.top < window.innerHeight * 0.7 && r.bottom > window.innerHeight * 0.3) return;
+      clearTimeout(calmTimer.current);
+      calmTimer.current = undefined;
+      setCalm(false);
+    };
+    const wait = (ms: number) => {
       clearTimeout(rest);
-      rest = setTimeout(() => {
-        window.removeEventListener("scroll", settle);
-        setJumping(false);
-      }, 150);
+      if (!document.hidden) rest = setTimeout(end, ms);
+    };
+    const settle = () => wait(150);
+    const onShow = () => {
+      if (pending) wait(1000);
     };
     const jump = () => {
+      pending = true;
       setJumping(true);
       window.addEventListener("scroll", settle, { passive: true });
-      settle();
+      wait(1000);
     };
     const onClick = (e: MouseEvent) => {
       const link = e.target instanceof Element ? e.target.closest("a") : null;
@@ -128,8 +148,12 @@ function Tour() {
     };
     if (window.location.hash) jump();
     document.addEventListener("click", onClick);
+    window.addEventListener("popstate", jump);
+    document.addEventListener("visibilitychange", onShow);
     return () => {
       document.removeEventListener("click", onClick);
+      window.removeEventListener("popstate", jump);
+      document.removeEventListener("visibilitychange", onShow);
       window.removeEventListener("scroll", settle);
       clearTimeout(rest);
     };
