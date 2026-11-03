@@ -434,20 +434,22 @@ function Details({
   showBestForOnPhones?: boolean;
 }) {
   return (
-    <details className="group/details border-t border-ink-100 pt-2">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg py-2 text-[0.88rem] font-semibold text-ink-800 transition-colors hover:text-abyss-600 [&::-webkit-details-marker]:hidden">
+    <details className="disclosure group/details border-t border-ink-100 pt-2">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg py-2 text-[0.88rem] font-semibold text-ink-800 transition-colors duration-300 ease-out-expo hover:text-abyss-600 [&::-webkit-details-marker]:hidden">
         <span>
           Details<span className="sr-only">: {pkg.name}</span>
         </span>
+        {/* The gradient is always on; opening tweens its stops, which
+            Tailwind registers as animatable colours. */}
         <span
           aria-hidden="true"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-ink-100 text-ink-600 transition-[rotate,background-color,color] duration-300 group-open/details:rotate-180 group-open/details:bg-linear-to-br group-open/details:from-abyss-600 group-open/details:to-aqua-500 group-open/details:text-white"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-ink-100 to-ink-100 text-ink-600 transition-[rotate,color,--tw-gradient-from,--tw-gradient-to] duration-300 ease-out-expo group-open/details:rotate-180 group-open/details:from-abyss-600 group-open/details:to-aqua-500 group-open/details:text-white"
         >
           <ChevronDown className="h-3.5 w-3.5" />
         </span>
       </summary>
 
-      <div className="space-y-4 pb-1 pt-3">
+      <div className="space-y-4 pb-1 pt-3 group-open/details:motion-safe:animate-details-in">
         {showBestForOnPhones && <BestFor text={pkg.bestFor} className="min-w-0 sm:hidden" />}
 
         {showIntro && pkg.intro && (

@@ -204,7 +204,7 @@ function FunctionPanel({ fn }: { fn: BusinessFunction }) {
   const packages = packagesFor(fn.packageIds);
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden rounded-3xl glass p-5 motion-safe:animate-[rise_0.5s_var(--ease-out-expo)_both] sm:p-7">
+    <div className="relative flex h-full flex-col overflow-hidden rounded-3xl glass p-5 motion-safe:animate-panel-in sm:p-7">
       <span
         aria-hidden="true"
         className={`absolute inset-x-0 top-0 h-1 bg-linear-to-r ${fn.tone.gradient}`}
@@ -249,7 +249,7 @@ function FunctionPanel({ fn }: { fn: BusinessFunction }) {
               <li key={pkg.id} className="min-w-0 max-w-full">
                 <a
                   href={`#service-${pkg.id}`}
-                  className="relative inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/85 px-3 py-1.5 text-[0.8rem] font-semibold text-abyss-600 ring-1 ring-ink-200/80 transition-colors hover:bg-white hover:text-abyss-700 hover:ring-aqua-400"
+                  className="relative inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/85 px-3 py-1.5 text-[0.8rem] font-semibold text-abyss-600 ring-1 ring-ink-200/80 transition-[background-color,box-shadow,color] hover:bg-white hover:text-abyss-700 hover:ring-aqua-400"
                 >
                   <span className="min-w-0">{pkg.name}</span>
                   <ArrowRight className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />

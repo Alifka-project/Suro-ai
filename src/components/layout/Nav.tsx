@@ -10,6 +10,7 @@ import Image from "next/image";
 import {
   AnimatePresence,
   motion,
+  useIsPresent,
   useMotionValueEvent,
   useReducedMotion,
   useScroll,
@@ -62,11 +63,123 @@ function useActiveSection(ids: readonly string[]): string | null {
   return active;
 }
 
+/**
+ * The mobile menu: a backdrop and a panel that drops in under the header. The
+ * fades sit on those two, not on this wrapper, because opacity on an ancestor
+ * switches off their backdrop blur until the fade ends. As AnimatePresence's
+ * direct child it knows when it's closing, and goes inert so the sheet can't
+ * catch taps or focus while it slides away.
+ */
+function MobileSheet({
+  active,
+  onClose,
+  onSheetBlur,
+}: {
+  active: string | null;
+  onClose: () => void;
+  onSheetBlur: (e: FocusEvent<HTMLElement>) => void;
+}) {
+  const isPresent = useIsPresent();
+  const reduce = useReducedMotion();
+
+  return (
+    <div
+      id="mobile-menu"
+      inert={!isPresent}
+      className={`fixed inset-0 z-40 lg:hidden ${isPresent ? "" : "pointer-events-none"}`}
+    >
+      {/* Pointer-only dismiss; keyboard users have the toggle and Escape */}
+      <motion.button
+        type="button"
+        tabIndex={-1}
+        aria-label="Close menu"
+        onClick={onClose}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: reduce ? 0 : 0.3, ease: easeOutExpo }}
+        className="absolute inset-0 bg-ink-900/25 backdrop-blur-sm"
+      />
+
+      <motion.nav
+        aria-label="Menu"
+        onBlur={onSheetBlur}
+        initial={reduce ? false : { y: "-100%", opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={reduce ? { opacity: 0 } : { y: "-100%", opacity: 0 }}
+        transition={
+          reduce
+            ? { duration: 0 }
+            : {
+                duration: 0.5,
+                ease: easeOutExpo,
+                opacity: { duration: 0.3, ease: easeOutExpo },
+              }
+        }
+        className="relative mx-3 mt-20 overflow-hidden rounded-3xl glass-strong p-5"
+      >
+        <ul className="space-y-1">
+          {LINKS.map((l, i) => {
+            const current = active === l.id;
+            return (
+              <motion.li
+                key={l.id}
+                initial={reduce ? false : { opacity: 0, x: -16 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.1 + i * 0.05, duration: 0.45, ease: easeOutExpo }}
+              >
+                <a
+                  href={`#${l.id}`}
+                  onClick={onClose}
+                  aria-current={current ? "true" : undefined}
+                  className={`group flex items-center justify-between rounded-2xl px-4 py-3.5 font-display text-lg font-semibold transition-[color,background-color,scale] duration-200 ease-out-expo hover:bg-white/70 hover:text-ink-900 active:scale-[0.98] active:bg-white/70 active:text-ink-900 ${
+                    current ? "bg-ink-100/80 text-ink-900" : "text-ink-800"
+                  }`}
+                >
+                  {l.label}
+                  <ArrowRight
+                    className="h-4 w-4 text-ink-400 transition-transform duration-300 ease-out-expo group-hover:translate-x-0.5 group-active:translate-x-1"
+                    aria-hidden="true"
+                  />
+                </a>
+              </motion.li>
+            );
+          })}
+        </ul>
+
+        <div className="mt-4 grid gap-2.5">
+          <ContactLink
+            intent={{ kind: "message" }}
+            onNavigate={onClose}
+            className="btn-primary group w-full"
+          >
+            Talk to us
+            <ArrowRight
+              className="h-4 w-4 transition-transform duration-300 ease-out-expo group-hover:translate-x-0.5"
+              aria-hidden="true"
+            />
+          </ContactLink>
+          <ContactLink
+            intent={{ kind: "call" }}
+            onNavigate={onClose}
+            className="btn-ghost group w-full"
+          >
+            <CalendarDays
+              className="h-4 w-4 transition-transform duration-300 ease-out-expo group-hover:-rotate-6"
+              aria-hidden="true"
+            />
+            Book a call
+          </ContactLink>
+        </div>
+      </motion.nav>
+    </div>
+  );
+}
+
 export function Nav() {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   const { scrollY, scrollYProgress } = useScroll();
-  const reduce = useReducedMotion();
   const active = useActiveSection(LINK_IDS);
   const toggleRef = useRef<HTMLButtonElement>(null);
 
@@ -144,7 +257,7 @@ export function Nav() {
                 width={34}
                 height={36}
                 loading="eager"
-                className="h-8 w-auto transition-transform duration-500 group-hover:scale-105 sm:h-9"
+                className="h-8 w-auto transition-transform duration-500 ease-out-expo group-hover:scale-105 group-focus-visible:scale-105 group-active:scale-95 sm:h-9"
               />
               <span className="font-display text-[1.15rem] font-bold tracking-[0.02em] text-ink-900">
                 SULO<span className="text-gradient">AI</span>
@@ -167,10 +280,10 @@ export function Nav() {
                     >
                       <span
                         aria-hidden="true"
-                        className={`absolute inset-0 rounded-full bg-ink-100/80 ring-1 ring-ink-200/60 transition-[opacity,transform] duration-300 ${
+                        className={`absolute inset-0 rounded-full bg-ink-100/80 ring-1 ring-ink-200/60 transition-[opacity,scale] duration-300 ease-out-expo ${
                           current
                             ? "scale-100 opacity-100"
-                            : "scale-90 opacity-0 group-hover:scale-100 group-hover:opacity-60"
+                            : "scale-90 opacity-0 group-hover:scale-100 group-hover:opacity-60 group-focus-visible:scale-100 group-focus-visible:opacity-60"
                         }`}
                       />
                       <span className="relative">{l.label}</span>
@@ -183,19 +296,27 @@ export function Nav() {
             <div className="flex items-center gap-2">
               <ContactLink
                 intent={{ kind: "call" }}
-                className="btn-ghost hidden px-4 py-2.5 text-[0.85rem] xl:inline-flex"
+                className="btn-ghost group hidden px-4 py-2.5 text-[0.85rem] xl:inline-flex"
               >
-                <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
+                <CalendarDays
+                  className="h-3.5 w-3.5 transition-transform duration-300 ease-out-expo group-hover:-rotate-6"
+                  aria-hidden="true"
+                />
                 Book a call
               </ContactLink>
               <ContactLink
                 intent={{ kind: "message" }}
-                className="btn-primary hidden px-5 py-2.5 text-[0.85rem] sm:inline-flex"
+                className="btn-primary group hidden px-5 py-2.5 text-[0.85rem] sm:inline-flex"
               >
                 Talk to us
-                <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                <ArrowRight
+                  className="h-3.5 w-3.5 transition-transform duration-300 ease-out-expo group-hover:translate-x-0.5"
+                  aria-hidden="true"
+                />
               </ContactLink>
 
+              {/* Both icons stay mounted in one grid cell, so the swap can
+                  cross-fade in CSS. */}
               <button
                 ref={toggleRef}
                 type="button"
@@ -203,13 +324,20 @@ export function Nav() {
                 aria-expanded={open}
                 aria-controls="mobile-menu"
                 aria-label={open ? "Close menu" : "Open menu"}
-                className="flex h-10 w-10 items-center justify-center rounded-full glass lg:hidden"
+                className="relative grid h-10 w-10 place-items-center rounded-full glass transition-[scale,background-color] duration-200 ease-out-expo active:scale-90 aria-expanded:bg-white lg:hidden"
               >
-                {open ? (
-                  <X className="h-5 w-5 text-ink-800" aria-hidden="true" />
-                ) : (
-                  <Menu className="h-5 w-5 text-ink-800" aria-hidden="true" />
-                )}
+                <Menu
+                  className={`col-start-1 row-start-1 h-5 w-5 text-ink-800 transition-[opacity,rotate,scale] duration-300 ease-out-expo ${
+                    open ? "-rotate-90 scale-75 opacity-0" : "rotate-0 scale-100 opacity-100"
+                  }`}
+                  aria-hidden="true"
+                />
+                <X
+                  className={`col-start-1 row-start-1 h-5 w-5 text-ink-800 transition-[opacity,rotate,scale] duration-300 ease-out-expo ${
+                    open ? "rotate-0 scale-100 opacity-100" : "rotate-90 scale-75 opacity-0"
+                  }`}
+                  aria-hidden="true"
+                />
               </button>
             </div>
           </nav>
@@ -225,81 +353,15 @@ export function Nav() {
         />
       </header>
 
-      {/* Mobile sheet */}
+      {/* Mobile sheet, right after the header so Tab walks from the toggle into it */}
       <AnimatePresence>
         {open && (
-          <motion.div
-            id="mobile-menu"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: reduce ? 0 : 0.3 }}
-            className="fixed inset-0 z-40 lg:hidden"
-          >
-            {/* Pointer-only dismiss; keyboard users have the toggle and Escape */}
-            <button
-              type="button"
-              tabIndex={-1}
-              aria-label="Close menu"
-              onClick={close}
-              className="absolute inset-0 bg-ink-900/25 backdrop-blur-sm"
-            />
-
-            <motion.nav
-              aria-label="Menu"
-              onBlur={onSheetBlur}
-              initial={reduce ? false : { y: "-100%" }}
-              animate={{ y: 0 }}
-              exit={reduce ? { opacity: 0 } : { y: "-100%" }}
-              transition={reduce ? { duration: 0 } : { duration: 0.5, ease: easeOutExpo }}
-              className="relative mx-3 mt-20 overflow-hidden rounded-3xl glass-strong p-5"
-            >
-              <ul className="space-y-1">
-                {LINKS.map((l, i) => {
-                  const current = active === l.id;
-                  return (
-                    <motion.li
-                      key={l.id}
-                      initial={reduce ? false : { opacity: 0, x: -16 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.1 + i * 0.05, duration: 0.45, ease: easeOutExpo }}
-                    >
-                      <a
-                        href={`#${l.id}`}
-                        onClick={close}
-                        aria-current={current ? "true" : undefined}
-                        className={`flex items-center justify-between rounded-2xl px-4 py-3.5 font-display text-lg font-semibold transition-colors hover:bg-white/70 hover:text-ink-900 ${
-                          current ? "bg-ink-100/80 text-ink-900" : "text-ink-800"
-                        }`}
-                      >
-                        {l.label}
-                        <ArrowRight className="h-4 w-4 text-ink-400" aria-hidden="true" />
-                      </a>
-                    </motion.li>
-                  );
-                })}
-              </ul>
-
-              <div className="mt-4 grid gap-2.5">
-                <ContactLink
-                  intent={{ kind: "message" }}
-                  onNavigate={close}
-                  className="btn-primary w-full"
-                >
-                  Talk to us
-                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </ContactLink>
-                <ContactLink
-                  intent={{ kind: "call" }}
-                  onNavigate={close}
-                  className="btn-ghost w-full"
-                >
-                  <CalendarDays className="h-4 w-4" aria-hidden="true" />
-                  Book a call
-                </ContactLink>
-              </div>
-            </motion.nav>
-          </motion.div>
+          <MobileSheet
+            key="mobile-menu"
+            active={active}
+            onClose={close}
+            onSheetBlur={onSheetBlur}
+          />
         )}
       </AnimatePresence>
     </>

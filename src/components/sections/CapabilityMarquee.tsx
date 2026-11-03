@@ -91,10 +91,17 @@ export function CapabilityMarquee() {
         <input id="capabilities-pause" type="checkbox" className="peer sr-only" />
         <label
           htmlFor="capabilities-pause"
-          className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-ink-600 glass transition-colors hover:text-ink-900 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-azure-500"
+          className="grid h-8 w-8 cursor-pointer place-items-center rounded-full text-ink-600 glass transition-[color,scale] duration-300 ease-out-expo hover:text-ink-900 active:scale-90 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-azure-500"
         >
-          <Pause className="h-3.5 w-3.5 group-has-checked/marquee:hidden" aria-hidden="true" />
-          <Play className="hidden h-3.5 w-3.5 group-has-checked/marquee:block" aria-hidden="true" />
+          {/* Both icons share one grid cell and crossfade on the checked state. */}
+          <Pause
+            className="h-3.5 w-3.5 transition-[opacity,scale] duration-300 ease-out-expo [grid-area:1/1] group-has-checked/marquee:scale-50 group-has-checked/marquee:opacity-0"
+            aria-hidden="true"
+          />
+          <Play
+            className="h-3.5 w-3.5 scale-50 opacity-0 transition-[opacity,scale] duration-300 ease-out-expo [grid-area:1/1] group-has-checked/marquee:scale-100 group-has-checked/marquee:opacity-100"
+            aria-hidden="true"
+          />
           <span className="sr-only">Pause the scrolling list</span>
         </label>
       </div>

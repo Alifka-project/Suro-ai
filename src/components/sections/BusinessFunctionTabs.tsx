@@ -120,18 +120,20 @@ export function BusinessFunctionTabs({
               tabIndex={selected ? 0 : -1}
               onClick={() => setActive(i)}
               onKeyDown={(e) => handleKeyDown(e, i)}
-              className={`group flex min-h-12 min-w-0 items-center gap-2.5 rounded-2xl px-2.5 py-2 text-left text-[0.85rem] font-medium leading-tight transition-[background-color,box-shadow,color] duration-300 sm:text-[0.9rem] lg:min-h-10 lg:rounded-xl lg:px-3 lg:py-1.5 ${
+              className={`group flex min-h-12 min-w-0 items-center gap-2.5 rounded-2xl px-2.5 py-2 text-left text-[0.85rem] font-medium leading-tight transition-[background-color,box-shadow,color] duration-300 ease-out-expo sm:text-[0.9rem] lg:min-h-10 lg:rounded-xl lg:px-3 lg:py-1.5 ${
                 selected
                   ? "bg-white text-ink-900 shadow-[0_10px_24px_-16px_rgb(7_38_60/0.6)] ring-1 ring-ink-200/80"
                   : "text-ink-700 hover:bg-white/60 hover:text-ink-900"
               }`}
             >
+              {/* The gradient is always on, so selecting tweens its stops
+                  (Tailwind registers them as animatable colours). */}
               <span
                 aria-hidden="true"
-                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-colors duration-300 lg:h-7 lg:w-7 lg:rounded-lg ${
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-linear-to-br transition-[color,box-shadow,--tw-gradient-from,--tw-gradient-to] duration-300 ease-out-expo lg:h-7 lg:w-7 lg:rounded-lg ${
                   selected
-                    ? `bg-linear-to-br text-white shadow-[0_8px_16px_-10px_rgb(7_38_60/0.7)] ${item.tone}`
-                    : "bg-ink-100 text-ink-600 group-hover:text-ink-800"
+                    ? `text-white shadow-[0_8px_16px_-10px_rgb(7_38_60/0.7)] ${item.tone}`
+                    : "from-ink-100 to-ink-100 text-ink-600 group-hover:text-ink-800"
                 }`}
               >
                 {item.icon}
@@ -140,7 +142,7 @@ export function BusinessFunctionTabs({
               <span className="hidden min-w-0 lg:block">{item.label}</span>
               <ChevronRight
                 aria-hidden="true"
-                className={`ml-auto hidden h-4 w-4 shrink-0 transition-[color,transform] duration-300 lg:block ${
+                className={`ml-auto hidden h-4 w-4 shrink-0 transition-[color,translate] duration-300 ease-out-expo lg:block ${
                   selected ? "translate-x-0.5 text-ink-700" : "text-ink-300"
                 }`}
               />

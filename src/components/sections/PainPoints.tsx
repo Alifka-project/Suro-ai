@@ -418,15 +418,17 @@ export function PainPoints() {
                     )}
 
                     {p.more && (
-                      <details className="group/more mt-4 border-t border-ink-100 pt-3">
-                        <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-full py-1 text-[0.82rem] font-semibold text-abyss-600 transition-colors hover:text-abyss-700 [&::-webkit-details-marker]:hidden">
+                      <details className="disclosure group/more mt-4 border-t border-ink-100 pt-3">
+                        <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-full py-1 text-[0.82rem] font-semibold text-abyss-600 transition-[color,scale] duration-300 ease-out-expo hover:text-abyss-700 active:scale-[0.98] [&::-webkit-details-marker]:hidden">
                           <ChevronDown
-                            className="h-4 w-4 transition-transform duration-300 group-open/more:rotate-180"
+                            className="h-4 w-4 transition-transform duration-500 ease-out-expo group-open/more:rotate-180"
                             aria-hidden="true"
                           />
                           {p.more.label}
                         </summary>
-                        <div className="mt-2 space-y-2.5">
+                        {/* Padding, not margin: the panel clips while it
+                            animates, and a margin would sit outside it. */}
+                        <div className="space-y-2.5 pt-2 group-open/more:motion-safe:animate-details-in">
                           {p.more.chips && (
                             <ul className="flex flex-wrap gap-1.5">
                               {p.more.chips.map((item) => (

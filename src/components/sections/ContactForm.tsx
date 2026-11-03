@@ -124,7 +124,7 @@ function ServiceChoice({
 }) {
   return (
     <label
-      className={`relative flex min-w-0 cursor-pointer items-start gap-3 rounded-2xl border p-3 transition-[border-color,background-color,box-shadow] duration-300 ${HIDDEN_INPUT_FOCUS} ${
+      className={`relative flex min-w-0 cursor-pointer items-start gap-3 rounded-2xl border p-3 transition-[border-color,background-color,box-shadow,scale] duration-300 active:scale-[0.985] motion-reduce:active:scale-100 ${HIDDEN_INPUT_FOCUS} ${
         checked
           ? "border-azure-400 bg-white shadow-[0_10px_26px_-16px_rgb(32_103_165_/_0.8)]"
           : "border-ink-200/80 bg-white/60 hover:border-ink-300"
@@ -133,13 +133,22 @@ function ServiceChoice({
       <input type="checkbox" value={value} className="sr-only" {...field} />
       <span
         aria-hidden="true"
-        className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors duration-300 ${
-          checked
-            ? "border-transparent bg-linear-to-br from-abyss-600 to-azure-500 text-white"
-            : "border-ink-300 bg-white"
+        className={`relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors duration-300 ${
+          checked ? "border-transparent" : "border-ink-300 bg-white"
         }`}
       >
-        {checked && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+        {/* On its own layer so the gradient fades out as well as in. */}
+        <span
+          className={`absolute -inset-px rounded-md bg-linear-to-br from-abyss-600 to-azure-500 transition-opacity duration-300 ease-out-expo ${
+            checked ? "opacity-100" : "opacity-0"
+          }`}
+        />
+        <Check
+          className={`relative h-3.5 w-3.5 text-white transition-[opacity,scale] duration-300 ease-spring ${
+            checked ? "scale-100 opacity-100" : "scale-50 opacity-0"
+          }`}
+          strokeWidth={3}
+        />
       </span>
       <span className="min-w-0">
         <span className="block text-[0.86rem] font-semibold leading-snug text-ink-900">
@@ -397,6 +406,20 @@ export function ContactForm() {
     transition: { duration: reduced ? 0 : 0.4, ease: easeOutExpo },
   } as const;
 
+  /** The main button's label, when the button swaps between Continue and Send. Same first-render rule as above. */
+  const actionMotion = {
+    initial: stepped ? { opacity: 0, y: reduced ? 0 : 6 } : false,
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: reduced ? 0 : 0.3, ease: easeOutExpo },
+  } as const;
+
+  const chipMotion = {
+    initial: { opacity: 0, scale: reduced ? 1 : 0.92 },
+    animate: { opacity: 1, scale: 1 },
+    exit: { opacity: 0, scale: reduced ? 1 : 0.92 },
+    transition: { duration: reduced ? 0 : 0.35, ease: easeOutExpo },
+  } as const;
+
   /* ── Success ──────────────────────────────────────────────────────── */
   if (sent) {
     const wantsCall = CALL_PREFERENCES.includes(getValues("contactPreference"));
@@ -434,7 +457,7 @@ export function ContactForm() {
           urgent, email{" "}
           <a
             href={`mailto:${CONTACT.email}`}
-            className="font-semibold text-abyss-600 underline decoration-abyss-600/30 underline-offset-4 hover:decoration-abyss-600"
+            className="font-semibold text-abyss-600 underline decoration-abyss-600/30 underline-offset-4 transition-colors hover:decoration-abyss-600"
           >
             {CONTACT.email}
           </a>
@@ -451,7 +474,11 @@ export function ContactForm() {
               key={s.t}
               initial={{ opacity: 0, y: reduced ? 0 : 14 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: reduced ? 0 : 0.35 + i * 0.1, duration: reduced ? 0 : 0.5 }}
+              transition={{
+                delay: reduced ? 0 : 0.35 + i * 0.1,
+                duration: reduced ? 0 : 0.5,
+                ease: easeOutExpo,
+              }}
               className="rounded-2xl border border-ink-100 bg-white/70 p-3.5"
             >
               <p aria-hidden="true" className="font-mono text-[0.65rem] text-ink-550">
@@ -488,31 +515,46 @@ export function ContactForm() {
           </p>
         </div>
 
-        {(showCallNote || askedAboutTicked.length > 0) && (
-          <ul className="mt-3 flex flex-wrap gap-1.5">
-            {showCallNote && (
-              <li className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-azure-500/10 px-2.5 py-1 text-[0.76rem] text-abyss-700">
-                <Video className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <span>
-                  <span className="font-semibold">Booking a call.</span> We&apos;ll
-                  reply with times that suit you.
-                </span>
-              </li>
-            )}
-            {askedAboutTicked.map((label) => (
-              <li
-                key={label}
-                className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-azure-500/10 px-2.5 py-1 text-[0.76rem] text-abyss-700"
-              >
-                <Check className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <span>
-                  <span className="sr-only">Selected: </span>
-                  {label}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <AnimatePresence initial={false}>
+          {(showCallNote || askedAboutTicked.length > 0) && (
+            <motion.ul
+              initial={{ height: 0, opacity: 0, marginTop: 0 }}
+              animate={{ height: "auto", opacity: 1, marginTop: 12 }}
+              exit={{ height: 0, opacity: 0, marginTop: 0 }}
+              transition={{ duration: reduced ? 0 : 0.35, ease: easeOutExpo }}
+              className="flex flex-wrap gap-1.5 overflow-hidden"
+            >
+              <AnimatePresence initial={false}>
+                {showCallNote && (
+                  <motion.li
+                    key="call"
+                    {...chipMotion}
+                    className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-azure-500/10 px-2.5 py-1 text-[0.76rem] text-abyss-700"
+                  >
+                    <Video className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    <span>
+                      <span className="font-semibold">Booking a call.</span> We&apos;ll
+                      reply with times that suit you.
+                    </span>
+                  </motion.li>
+                )}
+                {askedAboutTicked.map((label) => (
+                  <motion.li
+                    key={label}
+                    {...chipMotion}
+                    className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-azure-500/10 px-2.5 py-1 text-[0.76rem] text-abyss-700"
+                  >
+                    <Check className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    <span>
+                      <span className="sr-only">Selected: </span>
+                      {label}
+                    </span>
+                  </motion.li>
+                ))}
+              </AnimatePresence>
+            </motion.ul>
+          )}
+        </AnimatePresence>
 
         <ol aria-label="Form progress" className="mt-4 grid grid-cols-3 gap-1.5">
           {STEPS.map((s) => {
@@ -528,7 +570,7 @@ export function ContactForm() {
                   />
                 </div>
                 <p
-                  className={`mt-2 truncate text-[0.72rem] ${
+                  className={`mt-2 truncate text-[0.72rem] transition-colors duration-300 ease-out-expo ${
                     current ? "font-semibold text-ink-900" : "text-ink-550"
                   }`}
                 >
@@ -596,7 +638,7 @@ export function ContactForm() {
                     return (
                       <label
                         key={opt.value}
-                        className={`relative min-w-0 cursor-pointer overflow-hidden rounded-2xl border p-3.5 transition-[border-color,background-color,box-shadow] duration-300 ${HIDDEN_INPUT_FOCUS} ${
+                        className={`relative isolate min-w-0 cursor-pointer overflow-hidden rounded-2xl border p-3.5 transition-[border-color,background-color,box-shadow] duration-300 ${HIDDEN_INPUT_FOCUS} ${
                           active
                             ? "border-azure-400 bg-white shadow-[0_10px_26px_-16px_rgb(32_103_165_/_0.8)]"
                             : "border-ink-200/80 bg-white/60 hover:border-ink-300"
@@ -618,17 +660,20 @@ export function ContactForm() {
                         )}
                         <span className="flex items-center gap-2">
                           <Icon
-                            className={`h-4 w-4 ${active ? "text-azure-500" : "text-ink-400"}`}
+                            className={`h-4 w-4 shrink-0 transition-colors duration-300 ${active ? "text-azure-500" : "text-ink-400"}`}
                             aria-hidden="true"
                           />
                           <span
-                            className={`text-[0.9rem] font-semibold ${active ? "text-ink-900" : "text-ink-700"}`}
+                            className={`text-[0.9rem] font-semibold transition-colors duration-300 ${active ? "text-ink-900" : "text-ink-700"}`}
                           >
                             {opt.label}
                           </span>
-                          {active && (
-                            <Check className="ml-auto h-3.5 w-3.5 text-azure-500" aria-hidden="true" />
-                          )}
+                          <Check
+                            className={`ml-auto h-3.5 w-3.5 text-azure-500 transition-[opacity,scale] duration-300 ease-spring ${
+                              active ? "scale-100 opacity-100" : "scale-50 opacity-0"
+                            }`}
+                            aria-hidden="true"
+                          />
                         </span>
                         <span className="mt-1 block text-[0.72rem] leading-snug text-ink-600">
                           {opt.hint}
@@ -747,9 +792,9 @@ export function ContactForm() {
                     return (
                       <label
                         key={pref}
-                        className={`relative flex cursor-pointer items-center gap-1.5 rounded-full border px-3.5 py-2 text-[0.82rem] transition-[border-color,background-color,color,box-shadow] duration-300 ${HIDDEN_INPUT_FOCUS} ${
+                        className={`relative isolate flex cursor-pointer items-center gap-1.5 rounded-full border px-3.5 py-2 text-[0.82rem] transition-[border-color,background-color,color,box-shadow] duration-300 ease-out-expo ${HIDDEN_INPUT_FOCUS} ${
                           active
-                            ? "border-transparent bg-linear-to-r from-abyss-600 to-azure-500 text-white shadow-[0_8px_20px_-10px_rgb(32_103_165_/_0.85)]"
+                            ? "border-transparent text-white shadow-[0_8px_20px_-10px_rgb(32_103_165_/_0.85)]"
                             : "border-ink-200/80 bg-white/60 text-ink-600 hover:border-aqua-400 hover:text-ink-900"
                         }`}
                       >
@@ -759,7 +804,21 @@ export function ContactForm() {
                           className="sr-only"
                           {...register("contactPreference")}
                         />
-                        {active && <Check className="h-3.5 w-3.5" aria-hidden="true" />}
+                        {/* On its own layer so the gradient fill fades in and out. */}
+                        <span
+                          aria-hidden="true"
+                          className={`pointer-events-none absolute -inset-px -z-10 rounded-full bg-linear-to-r from-abyss-600 to-azure-500 transition-opacity duration-300 ease-out-expo ${
+                            active ? "opacity-100" : "opacity-0"
+                          }`}
+                        />
+                        {/* The negative margin cancels the flex gap while the check is collapsed. */}
+                        <span
+                          className={`overflow-hidden transition-[width,margin,opacity] duration-300 ease-out-expo ${
+                            active ? "mr-0 w-3.5 opacity-100" : "-mr-1.5 w-0 opacity-0"
+                          }`}
+                        >
+                          <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                        </span>
                         {pref}
                       </label>
                     );
@@ -1026,7 +1085,7 @@ export function ContactForm() {
 
               <div>
                 <label
-                  className={`flex cursor-pointer items-start gap-3 rounded-2xl border bg-white/60 p-3.5 ${
+                  className={`flex cursor-pointer items-start gap-3 rounded-2xl border bg-white/60 p-3.5 transition-colors duration-300 ${
                     errors.consent ? "border-blush-600" : "border-ink-100"
                   }`}
                 >
@@ -1048,19 +1107,27 @@ export function ContactForm() {
 
               <AnimatePresence>
                 {serverError && (
-                  <motion.p
-                    initial={{ opacity: 0, y: reduced ? 0 : -6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    role="alert"
-                    className="flex items-start gap-2 rounded-2xl border border-blush-300 bg-blush-200/40 p-3.5 text-[0.82rem] text-ink-800"
+                  <motion.div
+                    // -1.25rem cancels the bottom margin that space-y-5 gives the
+                    // consent block as soon as this mounts, so nothing below jumps.
+                    // Rem, not px, so the two match at any root font size.
+                    initial={{ height: 0, opacity: 0, marginTop: "-1.25rem" }}
+                    animate={{ height: "auto", opacity: 1, marginTop: "0rem" }}
+                    exit={{ height: 0, opacity: 0, marginTop: "-1.25rem" }}
+                    transition={{ duration: reduced ? 0 : 0.3, ease: easeOutExpo }}
+                    className="overflow-hidden"
                   >
-                    <CircleAlert
-                      className="mt-0.5 h-4 w-4 shrink-0 text-rose-700"
-                      aria-hidden="true"
-                    />
-                    {serverError}
-                  </motion.p>
+                    <p
+                      role="alert"
+                      className="flex items-start gap-2 rounded-2xl border border-blush-300 bg-blush-200/40 p-3.5 text-[0.82rem] text-ink-800"
+                    >
+                      <CircleAlert
+                        className="mt-0.5 h-4 w-4 shrink-0 text-rose-700"
+                        aria-hidden="true"
+                      />
+                      {serverError}
+                    </p>
+                  </motion.div>
                 )}
               </AnimatePresence>
             </motion.div>
@@ -1076,32 +1143,57 @@ export function ContactForm() {
             </button>
           )}
 
+          {/* Keyed, so these are two nodes. With one reused node, the Continue
+              click that reaches step 3 would find a submit button by the time
+              the browser acts on it, and send the form. */}
           {step < STEPS.length - 1 ? (
             <button
+              key="continue"
               type="button"
               onClick={next}
               className="btn-primary w-full sm:ml-auto sm:w-auto"
             >
-              Continue
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              <motion.span {...actionMotion} className="inline-flex items-center gap-[0.55rem]">
+                Continue
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </motion.span>
             </button>
           ) : (
             <button
+              key="send"
               type="submit"
               disabled={isSubmitting}
+              // Both labels are in the DOM while they cross-fade; keep one name.
+              aria-label={isSubmitting ? "Sending" : "Send"}
               className="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-60 sm:ml-auto sm:w-auto"
             >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                  Sending
-                </>
-              ) : (
-                <>
-                  <Send className="h-4 w-4" aria-hidden="true" />
-                  Send
-                </>
-              )}
+              {/* The outer span brings the label in with the button and is the
+                  box popLayout positions the outgoing label in; the inner one
+                  only cross-fades Send and Sending. */}
+              <motion.span {...actionMotion} className="relative inline-flex">
+                <AnimatePresence mode="popLayout" initial={false}>
+                  <motion.span
+                    key={isSubmitting ? "sending" : "send"}
+                    initial={{ opacity: 0, y: reduced ? 0 : 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: reduced ? 0 : -4 }}
+                    transition={{ duration: reduced ? 0 : 0.2, ease: easeOutExpo }}
+                    className="inline-flex items-center gap-[0.55rem]"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                        Sending
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4" aria-hidden="true" />
+                        Send
+                      </>
+                    )}
+                  </motion.span>
+                </AnimatePresence>
+              </motion.span>
             </button>
           )}
         </div>

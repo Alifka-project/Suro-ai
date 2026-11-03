@@ -51,7 +51,7 @@ export function SpotlightCard({
         if (e.pointerType === "mouse") setActive(true);
       }}
       onPointerLeave={() => setActive(false)}
-      className={`group relative isolate overflow-hidden rounded-3xl glass transition-[transform,box-shadow] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-1.5 ${className}`}
+      className={`group relative isolate overflow-hidden rounded-3xl glass transition-[translate,box-shadow] duration-500 ease-out-expo hover:-translate-y-1.5 ${className}`}
       style={{ "--glow": glow } as CSSProperties}
     >
       {/* Pointer spotlight. Opacity is a class, not an inline style, so the
@@ -59,17 +59,18 @@ export function SpotlightCard({
           doesn't switch this hover-only glow on for every card. */}
       <div
         aria-hidden="true"
-        className={`pointer-events-none absolute inset-0 -z-10 transition-opacity duration-500 ${active ? "opacity-100" : "opacity-0"}`}
+        className={`pointer-events-none absolute inset-0 -z-10 transition-opacity duration-500 ease-out-expo ${active ? "opacity-100" : "opacity-0"}`}
         style={{
           background:
             "radial-gradient(340px circle at var(--mx, 50%) var(--my, 50%), rgb(var(--glow) / 0.18), transparent 70%)",
         }}
       />
 
-      {/* Aurora hairline that brightens on hover */}
+      {/* Aurora hairline that brightens on hover, or while a control inside
+          has keyboard focus */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 rounded-3xl opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+        className="pointer-events-none absolute inset-0 rounded-3xl opacity-0 transition-opacity duration-500 ease-out-expo group-hover:opacity-100 group-has-focus-visible:opacity-100"
         style={{
           padding: "1px",
           background:

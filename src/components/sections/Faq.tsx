@@ -46,7 +46,7 @@ export function Faq() {
             return (
               <RevealItem
                 key={item.q}
-                className={`rounded-2xl transition-[background-color,box-shadow] duration-500 ${
+                className={`rounded-2xl transition-[background-color,box-shadow] duration-500 ease-out-expo ${
                   isOpen ? "glass-strong" : "glass"
                 }`}
               >
@@ -57,24 +57,29 @@ export function Faq() {
                     aria-expanded={isOpen}
                     aria-controls={panelId}
                     onClick={() => setOpen(isOpen ? null : i)}
-                    className="flex w-full items-center justify-between gap-4 rounded-2xl p-4 text-left focus-visible:outline-offset-[-3px] sm:p-5"
+                    className="group/faq flex w-full items-center justify-between gap-4 rounded-2xl p-4 text-left focus-visible:outline-offset-[-3px] sm:p-5"
                   >
                     <span
-                      className={`min-w-0 font-display text-[0.98rem] font-semibold leading-snug transition-colors duration-300 sm:text-[1.05rem] ${
+                      className={`min-w-0 font-display text-[0.98rem] font-semibold leading-snug transition-colors duration-300 ease-out-expo group-hover/faq:text-ink-900 sm:text-[1.05rem] ${
                         isOpen ? "text-ink-900" : "text-ink-700"
                       }`}
                     >
                       {item.q}
                     </span>
+                    {/* The gradient fill is its own layer so it can fade:
+                        a background-image can't be transitioned. */}
                     <span
                       aria-hidden="true"
-                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-[transform,background-color,color] duration-500 ${
-                        isOpen
-                          ? "rotate-45 bg-linear-to-br from-abyss-600 to-aqua-500 text-white"
-                          : "bg-ink-100 text-ink-600"
+                      className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-ink-100 transition-[rotate,scale,background-color,color] duration-500 ease-out-expo group-active/faq:scale-90 ${
+                        isOpen ? "rotate-45 text-white" : "text-ink-600 group-hover/faq:bg-ink-200"
                       }`}
                     >
-                      <Plus className="h-3.5 w-3.5" />
+                      <span
+                        className={`absolute inset-0 rounded-full bg-linear-to-br from-abyss-600 to-aqua-500 transition-opacity duration-500 ease-out-expo ${
+                          isOpen ? "opacity-100" : "opacity-0"
+                        }`}
+                      />
+                      <Plus className="relative h-3.5 w-3.5" />
                     </span>
                   </button>
                 </h3>

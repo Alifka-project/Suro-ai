@@ -1,7 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+  type Ref,
+} from "react";
+import { AnimatePresence, motion, useIsPresent, useReducedMotion } from "framer-motion";
 import { ArrowRight, CircleAlert, CornerDownLeft, Loader2, RefreshCw } from "lucide-react";
 // Type-only: the engine itself is loaded on demand (see loadEngine below).
 import type { SolutionResult } from "@/lib/solution-engine";
@@ -103,17 +111,124 @@ function isPlainClick(e: MouseEvent<HTMLAnchorElement>): boolean {
   return e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
 }
 
+/**
+ * The answer card. As AnimatePresence's direct child it knows when it's
+ * leaving, and goes inert so the fading copy can't take a click or focus meant
+ * for what replaces it. popLayout passes it a ref, which has to reach the
+ * article, and pins the leaving card with position:absolute at its offsetTop
+ * (against the console's `relative` root). offsetTop already includes the top
+ * margin, so the margin goes too, or the card would slip down by that much.
+ */
+function AnswerCard({ ref, children }: { ref?: Ref<HTMLElement>; children: ReactNode }) {
+  const isPresent = useIsPresent();
+  const reduced = useReducedMotion();
+  return (
+    <motion.article
+      ref={ref}
+      inert={!isPresent}
+      initial={{ opacity: 0, y: reduced ? 0 : 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      // Short enough to finish inside the thinking pause before a re-run's answer.
+      exit={{
+        opacity: 0,
+        y: reduced ? 0 : -8,
+        transition: { duration: 0.25, ease: easeOutExpo },
+      }}
+      transition={{ duration: 0.6, ease: easeOutExpo }}
+      aria-labelledby="solution-title"
+      className={`overflow-hidden rounded-[1.75rem] glass-strong sm:rounded-[2rem] ${
+        isPresent ? "mt-4" : "pointer-events-none"
+      }`}
+    >
+      {children}
+    </motion.article>
+  );
+}
+
+/**
+ * The sample prompts: inert and pinned on the way out, like AnswerCard.
+ * Server-rendered and visible from the first paint (`initial={false}`); it only
+ * animates in when it returns after a question, which only happens
+ * client-side, so the `reduced` check is safe here.
+ */
+function SamplePrompts({
+  ref,
+  hasRun,
+  children,
+}: {
+  ref?: Ref<HTMLDivElement>;
+  hasRun: boolean;
+  children: ReactNode;
+}) {
+  const isPresent = useIsPresent();
+  const reduced = useReducedMotion();
+  return (
+    <motion.div
+      ref={ref}
+      inert={!isPresent}
+      initial={hasRun ? { opacity: 0, y: reduced ? 0 : 10 } : false}
+      animate={{ opacity: 1, y: 0 }}
+      // Opacity only, so the pinned copy doesn't slide over the thinking line.
+      exit={{ opacity: 0, transition: { duration: 0.18 } }}
+      transition={{ delay: 0.15, duration: 0.6, ease: easeOutExpo }}
+      className={isPresent ? "mt-4" : "pointer-events-none"}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+/**
+ * "New question", scaled in once there's an answer and inert on the way out
+ * (reset() has already moved focus to the textarea). The wrapper animates, not
+ * the button: an inline transform or opacity on .btn-ghost would override its
+ * hover lift.
+ */
+function NewQuestionButton({ onClick }: { onClick: () => void }) {
+  const isPresent = useIsPresent();
+  const reduced = useReducedMotion();
+  return (
+    <motion.span
+      inert={!isPresent}
+      initial={{ opacity: 0, scale: reduced ? 1 : 0.92 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{
+        opacity: 0,
+        scale: reduced ? 1 : 0.92,
+        transition: { duration: reduced ? 0 : 0.15, ease: easeOutExpo },
+      }}
+      transition={{ duration: reduced ? 0 : 0.35, ease: easeOutExpo }}
+      className={`inline-flex ${isPresent ? "" : "pointer-events-none"}`}
+    >
+      <button
+        type="button"
+        onClick={onClick}
+        className="btn-ghost !px-4 !py-2.5 text-sm"
+      >
+        <RefreshCw className="h-4 w-4" aria-hidden="true" />
+        New question
+      </button>
+    </motion.span>
+  );
+}
+
 export function PromptConsole() {
   const [value, setValue] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [result, setResult] = useState<SolutionResult | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
+  /** Keys the failure alert, so each failure mounts (and announces) its own. */
+  const [failCount, setFailCount] = useState(0);
   /** False until the first question: the server-rendered sample prompts must
       not start hidden waiting for an entrance animation. */
   const [hasRun, setHasRun] = useState(false);
   /** Drives the blueprint/outcomes/CTA reveal on a timer rather than on the
       typewriter, so substantive content is never hostage to a decoration. */
   const [expanded, setExpanded] = useState(false);
+  /** The answer area's height during a re-run: popLayout lifts the old card
+      out of the flow at once, and the page below would jump up until the new
+      answer takes its place. */
+  const [holdHeight, setHoldHeight] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const resultRef = useRef<HTMLDivElement>(null);
   /** Same array for the component's lifetime, so the unmount cleanup sees every timer. */
@@ -150,6 +265,9 @@ export function PromptConsole() {
 
       setHasRun(true);
       setLoadFailed(false);
+      if (phase === "answered") {
+        setHoldHeight(resultRef.current?.offsetHeight ?? 0);
+      }
       setPhase("thinking");
       setResult(null);
       setExpanded(false);
@@ -164,12 +282,15 @@ export function PromptConsole() {
       } catch {
         if (id !== runId.current) return;
         setLoadFailed(true);
+        setFailCount((n) => n + 1);
+        setHoldHeight(0);
         setPhase("idle");
         return;
       }
       if (id !== runId.current) return;
 
       setResult(engine.generateSolution(trimmed));
+      setHoldHeight(0);
       setPhase("answered");
       timers.current.push(
         setTimeout(() => setExpanded(true), reduced ? 60 : 1100)
@@ -208,6 +329,7 @@ export function PromptConsole() {
     timers.current.forEach(clearTimeout);
     timers.current.length = 0;
     setPhase("idle");
+    setHoldHeight(0);
     setResult(null);
     setExpanded(false);
     setLoadFailed(false);
@@ -231,11 +353,10 @@ export function PromptConsole() {
       </p>
 
       {/* ── Input console ─────────────────────────────────────────────── */}
-      <motion.div
-        layout={!reduced}
-        transition={{ duration: 0.5, ease: easeOutExpo }}
-        className="relative overflow-hidden rounded-[1.75rem] glass-strong p-1.5 sm:rounded-[2rem]"
-      >
+      {/* Grows with the textarea without a layout animation: framer's would
+          scale the box, stretching the text inside while it resized, and
+          re-measure the page on every keystroke. */}
+      <div className="relative overflow-hidden rounded-[1.75rem] glass-strong p-1.5 sm:rounded-[2rem]">
         {/* Slow gradient sweep along the console edge (stilled by the
             reduced-motion rule in globals.css) */}
         <div
@@ -310,16 +431,11 @@ export function PromptConsole() {
                 the answered state this becomes the only flex child, and
                 justify-between would park it on the left. */}
             <div className="flex shrink-0 items-center gap-2 sm:ml-auto sm:justify-end">
-              {phase === "answered" && (
-                <button
-                  type="button"
-                  onClick={reset}
-                  className="btn-ghost !px-4 !py-2.5 text-sm"
-                >
-                  <RefreshCw className="h-4 w-4" aria-hidden="true" />
-                  New question
-                </button>
-              )}
+              <AnimatePresence initial={false}>
+                {phase === "answered" && (
+                  <NewQuestionButton key="reset" onClick={reset} />
+                )}
+              </AnimatePresence>
               <button
                 type="button"
                 onClick={() => void run(value)}
@@ -327,78 +443,110 @@ export function PromptConsole() {
                 disabled={value.trim().length < 3 || phase === "thinking"}
                 className="btn-primary w-full !py-3 disabled:cursor-not-allowed disabled:opacity-45 sm:w-auto"
               >
-                {phase === "thinking" ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                    Working on it
-                  </>
-                ) : (
-                  <>
+                {/* Both labels share one grid cell, so the button keeps the
+                    wider one's width and the swap cross-fades in place.
+                    aria-hidden takes the outgoing label out of its name at
+                    once; `invisible` only lands when the fade ends. */}
+                <span className="grid">
+                  <span
+                    aria-hidden={phase === "thinking"}
+                    className={`inline-flex items-center justify-center gap-2 transition-[opacity,translate,visibility] duration-200 ease-out-expo [grid-area:1/1] ${
+                      phase === "thinking"
+                        ? "invisible translate-y-1 opacity-0"
+                        : "visible translate-y-0 opacity-100"
+                    }`}
+                  >
                     Suggest a solution
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                  </>
-                )}
+                  </span>
+                  <span
+                    aria-hidden={phase !== "thinking"}
+                    className={`inline-flex items-center justify-center gap-2 transition-[opacity,translate,visibility] duration-200 ease-out-expo [grid-area:1/1] ${
+                      phase === "thinking"
+                        ? "visible translate-y-0 opacity-100"
+                        : "invisible translate-y-1 opacity-0"
+                    }`}
+                  >
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                    Working on it
+                  </span>
+                </span>
               </button>
             </div>
           </div>
         </div>
-      </motion.div>
+      </div>
 
-      {loadFailed && (
-        <p
-          role="alert"
-          className="mt-4 flex items-start gap-2 rounded-2xl border border-blush-300 bg-blush-200/40 p-3.5 text-[0.85rem] text-ink-800"
-        >
-          <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-rose-700" aria-hidden="true" />
-          The suggestion didn&apos;t load. Check your connection and try again.
-        </p>
-      )}
+      {/* Mounting is what gets it announced, so it stays conditional, and
+          each failure gets its own key: a retry that fails mid-exit would
+          otherwise bring the old node back, unannounced. On the way out it
+          folds away (its margin too) and what's below slides up. The box is
+          on an inner span: `height: 0` can't shrink past padding and border. */}
+      <AnimatePresence>
+        {loadFailed && (
+          <motion.p
+            key={failCount}
+            role="alert"
+            initial={{ opacity: 0, y: reduced ? 0 : -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{
+              opacity: 0,
+              height: 0,
+              marginTop: 0,
+              transition: { duration: reduced ? 0 : 0.22, ease: easeOutExpo },
+            }}
+            transition={{ duration: 0.3, ease: easeOutExpo }}
+            className="mt-4 overflow-hidden"
+          >
+            <span className="flex items-start gap-2 rounded-2xl border border-blush-300 bg-blush-200/40 p-3.5 text-[0.85rem] text-ink-800">
+              <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-rose-700" aria-hidden="true" />
+              The suggestion didn&apos;t load. Check your connection and try again.
+            </span>
+          </motion.p>
+        )}
+      </AnimatePresence>
 
       {/* ── Sample prompts ────────────────────────────────────────────── */}
-      {/* Server-rendered and visible from the first paint (`initial={false}`);
-          it only animates when it returns after a "New question". The
-          `reduced` check is safe here because that only happens client-side. */}
-      {phase === "idle" && (
-        <motion.div
-          initial={hasRun ? { opacity: 0, y: reduced ? 0 : 10 } : false}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15, duration: 0.6, ease: easeOutExpo }}
-          className="mt-4"
-        >
-          <p
-            id="sample-prompts-label"
-            className="mb-2.5 font-mono text-[0.68rem] uppercase tracking-[0.16em] text-ink-550"
-          >
-            Or try one of these
-          </p>
-          {/* `relative` keeps this rail the containing block for anything
-              positioned inside it, so it can never widen the page. On phones
-              it scrolls sideways, which clips vertically too: the top padding
-              (cancelled by the negative margin) leaves room for the chips'
-              focus outline and hover lift. */}
-          <ul
-            aria-labelledby="sample-prompts-label"
-            className="relative -mx-4 -mt-1.5 flex gap-2 overflow-x-auto px-4 pb-2 pt-1.5 no-scrollbar sm:mx-0 sm:mt-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 sm:pt-0"
-          >
-            {SAMPLE_PROMPTS.map((prompt) => (
-              <li key={prompt} className="shrink-0 sm:shrink">
-                <button
-                  type="button"
-                  onPointerEnter={prefetchEngine}
-                  onFocus={prefetchEngine}
-                  onClick={() => {
-                    setValue(prompt);
-                    void run(prompt);
-                  }}
-                  className="rounded-full border border-ink-200/80 bg-white/60 px-3.5 py-2 text-left text-[0.8rem] text-ink-600 backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-aqua-400 hover:bg-white hover:text-ink-900"
-                >
-                  {prompt}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </motion.div>
-      )}
+      {/* popLayout takes the leaving block out of the flow at once, so the
+          thinking line can take its place without jumping later. */}
+      <AnimatePresence initial={false} mode="popLayout">
+        {phase === "idle" && (
+          <SamplePrompts key="prompts" hasRun={hasRun}>
+            <p
+              id="sample-prompts-label"
+              className="mb-2.5 font-mono text-[0.68rem] uppercase tracking-[0.16em] text-ink-550"
+            >
+              Or try one of these
+            </p>
+            {/* `relative` keeps this rail the containing block for anything
+                positioned inside it, so it can never widen the page. On phones
+                it scrolls sideways, which clips vertically too: the top padding
+                (cancelled by the negative margin) leaves room for the chips'
+                focus outline and hover lift. */}
+            <ul
+              aria-labelledby="sample-prompts-label"
+              className="relative -mx-4 -mt-1.5 flex gap-2 overflow-x-auto px-4 pb-2 pt-1.5 no-scrollbar sm:mx-0 sm:mt-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 sm:pt-0"
+            >
+              {SAMPLE_PROMPTS.map((prompt) => (
+                <li key={prompt} className="shrink-0 sm:shrink">
+                  <button
+                    type="button"
+                    onPointerEnter={prefetchEngine}
+                    onFocus={prefetchEngine}
+                    onClick={() => {
+                      setValue(prompt);
+                      void run(prompt);
+                    }}
+                    className="rounded-full border border-ink-200/80 bg-white/60 px-3.5 py-2 text-left text-[0.8rem] text-ink-600 backdrop-blur-sm transition-all duration-300 ease-out-expo hover:-translate-y-0.5 hover:border-aqua-400 hover:bg-white hover:text-ink-900 active:scale-[0.97]"
+                  >
+                    {prompt}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </SamplePrompts>
+        )}
+      </AnimatePresence>
 
       {/* ── Output ────────────────────────────────────────────────────── */}
       {/* The working line has no exit animation and the answer doesn't wait
@@ -406,12 +554,16 @@ export function PromptConsole() {
           jumps up into its place, and a frozen rAF (backgrounded tab) can't
           strand the user on an empty console. */}
       {/* scroll-mt adds to the page's scroll-padding-top, which already clears the fixed nav. */}
-      <div ref={resultRef} className="scroll-mt-3">
+      <div
+        ref={resultRef}
+        className="scroll-mt-3"
+        style={holdHeight ? { minHeight: holdHeight } : undefined}
+      >
         {phase === "thinking" && (
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 0.25 }}
+            transition={{ duration: 0.25, ease: easeOutExpo }}
             className="mt-4 flex items-center gap-2.5 px-1 font-mono text-[0.8rem] text-ink-700"
           >
             <Loader2
@@ -422,17 +574,11 @@ export function PromptConsole() {
           </motion.p>
         )}
 
-        <AnimatePresence>
+        {/* popLayout pins a leaving card where it was, so the prompts or the
+            thinking line that replace it never push it down. */}
+        <AnimatePresence mode="popLayout">
           {phase === "answered" && result && (
-            <motion.article
-              key="answer"
-              initial={{ opacity: 0, y: reduced ? 0 : 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: reduced ? 0 : -10 }}
-              transition={{ duration: 0.6, ease: easeOutExpo }}
-              aria-labelledby="solution-title"
-              className="mt-4 overflow-hidden rounded-[1.75rem] glass-strong sm:rounded-[2rem]"
-            >
+            <AnswerCard key="answer">
               {/* Header: what it is, which package, how close the match is */}
               <div className="relative overflow-hidden border-b border-ink-100 p-5 sm:p-6">
                 <div
@@ -614,10 +760,13 @@ export function PromptConsole() {
                                   packageLabel: pkg?.formLabel,
                                 });
                               }}
-                              className="btn-primary w-full whitespace-normal text-center sm:w-auto"
+                              className="btn-primary group/cta w-full whitespace-normal text-center sm:w-auto"
                             >
                               {pkg ? `Talk to us about ${pkg.name}` : "Talk to us"}
-                              <ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+                              <ArrowRight
+                                className="h-4 w-4 shrink-0 transition-transform duration-300 ease-out-expo group-hover/cta:translate-x-0.5"
+                                aria-hidden="true"
+                              />
                             </a>
                             <a
                               href={`#${SECTION_IDS.services}`}
@@ -632,7 +781,7 @@ export function PromptConsole() {
                   )}
                 </AnimatePresence>
               </div>
-            </motion.article>
+            </AnswerCard>
           )}
         </AnimatePresence>
       </div>

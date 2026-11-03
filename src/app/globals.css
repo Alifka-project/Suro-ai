@@ -100,6 +100,8 @@
   --animate-marquee: marquee 42s linear infinite;
   --animate-caret: caret 1.05s steps(1) infinite;
   --animate-rise: rise 0.9s var(--ease-out-expo) both;
+  --animate-details-in: details-in 0.4s var(--ease-out-expo) both;
+  --animate-panel-in: panel-in 0.4s var(--ease-out-expo) both;
   --animate-gradient-pan: gradient-pan 8s ease infinite;
 }
 
@@ -187,6 +189,20 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes details-in {
+  from {
+    opacity: 0;
+    translate: 0 -6px;
+  }
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    translate: 0 10px;
   }
 }
 
@@ -390,19 +406,24 @@
     transition:
       background-position 0.6s var(--ease-out-expo),
       transform 0.25s var(--ease-out-expo),
-      box-shadow 0.25s var(--ease-out-expo);
+      box-shadow 0.25s var(--ease-out-expo),
+      opacity 0.25s var(--ease-out-expo);
   }
 
-  .btn-primary:hover {
-    background-position: right center;
-    transform: translateY(-2px);
-    box-shadow:
-      0 18px 34px -12px rgb(32 103 165 / 0.62),
-      0 1px 0 0 rgb(255 255 255 / 0.45) inset;
+  /* Hover only where there is a real hover, so a tap doesn't leave the
+     button lifted; disabled buttons stay put. */
+  @media (hover: hover) {
+    .btn-primary:hover:not(:disabled) {
+      background-position: right center;
+      transform: translateY(-2px);
+      box-shadow:
+        0 18px 34px -12px rgb(32 103 165 / 0.62),
+        0 1px 0 0 rgb(255 255 255 / 0.45) inset;
+    }
   }
 
-  .btn-primary:active {
-    transform: translateY(0);
+  .btn-primary:active:not(:disabled) {
+    transform: translateY(0) scale(0.98);
   }
 
   .btn-ghost {
@@ -422,15 +443,22 @@
     border: 1px solid color-mix(in oklab, var(--color-ink-200) 90%, transparent);
     backdrop-filter: blur(12px);
     transition:
-      border-color 0.25s ease,
-      background 0.25s ease,
-      transform 0.25s var(--ease-out-expo);
+      border-color 0.25s var(--ease-out-expo),
+      background 0.25s var(--ease-out-expo),
+      transform 0.25s var(--ease-out-expo),
+      opacity 0.25s var(--ease-out-expo);
   }
 
-  .btn-ghost:hover {
-    border-color: var(--color-aqua-400);
-    background: white;
-    transform: translateY(-2px);
+  @media (hover: hover) {
+    .btn-ghost:hover:not(:disabled) {
+      border-color: var(--color-aqua-400);
+      background: white;
+      transform: translateY(-2px);
+    }
+  }
+
+  .btn-ghost:active:not(:disabled) {
+    transform: translateY(0) scale(0.98);
   }
 
   .eyebrow {
@@ -485,6 +513,30 @@
     font-weight: 600;
     color: var(--color-ink-700);
   }
+
+  /* Native <details> that opens and closes smoothly where the browser can
+     tween to height: auto; allow-discrete keeps the content visible until
+     it has closed. Elsewhere it toggles instantly, as before. */
+  .disclosure {
+    interpolate-size: allow-keywords;
+  }
+
+  .disclosure::details-content {
+    block-size: 0;
+    overflow-y: clip;
+  }
+
+  .disclosure[open]::details-content {
+    block-size: auto;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .disclosure::details-content {
+      transition:
+        block-size 0.5s var(--ease-out-expo),
+        content-visibility 0.5s allow-discrete;
+    }
+  }
 }
 
 /* Hide scrollbar on horizontal rails but keep scrolling */
@@ -511,7 +563,13 @@
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
+    transition-delay: 0s !important;
     scroll-behavior: auto !important;
+  }
+
+  /* The rule above doesn't reach this pseudo-element. */
+  ::details-content {
+    transition: none !important;
   }
 }
 
@@ -549,6 +607,10 @@
   }
   [data-film-stage] {
     position: relative !important;
+  }
+  /* The browser shows its own controls on a video when scripting is off. */
+  [data-film-controls] {
+    display: none !important;
   }
 }
 

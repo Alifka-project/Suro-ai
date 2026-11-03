@@ -154,12 +154,18 @@ export function Hero() {
               className={`mt-7 flex flex-wrap items-center justify-center gap-3 lg:justify-start ${RISE}`}
               style={delay(520)}
             >
-              <ContactLink intent={{ kind: "message" }} className="btn-primary">
+              <ContactLink intent={{ kind: "message" }} className="btn-primary group">
                 Talk to us
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                <ArrowRight
+                  className="h-4 w-4 transition-transform duration-300 ease-out-expo group-hover:translate-x-0.5"
+                  aria-hidden="true"
+                />
               </ContactLink>
-              <ContactLink intent={{ kind: "call" }} className="btn-ghost">
-                <CalendarDays className="h-4 w-4 text-abyss-600" aria-hidden="true" />
+              <ContactLink intent={{ kind: "call" }} className="btn-ghost group">
+                <CalendarDays
+                  className="h-4 w-4 text-abyss-600 transition-transform duration-300 ease-out-expo group-hover:-rotate-6"
+                  aria-hidden="true"
+                />
                 Book a call
               </ContactLink>
             </div>

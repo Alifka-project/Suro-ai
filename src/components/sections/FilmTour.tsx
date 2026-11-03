@@ -319,7 +319,10 @@ function Tour() {
                 )}
 
                 {!broken && (
-                  <div className="absolute bottom-2 right-2 flex gap-2 sm:bottom-3.5 sm:right-3.5">
+                  <div
+                    data-film-controls=""
+                    className="absolute bottom-2 right-2 flex gap-2 sm:bottom-3.5 sm:right-3.5"
+                  >
                     {film.sound && (
                       <FrameButton
                         onClick={toggleSound}
