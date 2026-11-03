@@ -11,8 +11,8 @@ Each film has three files:
 
 | File | What it is |
 | --- | --- |
-| `name.mp4` | The film. H.264, 1920×1080 (16:9), with `-movflags +faststart` so it starts before it has fully downloaded. Tablets and desktops play this one. |
-| `name-720.mp4` | The same film at 1280×720, for phones. Optional, but it saves phone visitors about two thirds of the download. |
+| `name.mp4` | The film. H.264, 1920×1080 (16:9), with `-movflags +faststart` so it starts before it has fully downloaded. HiDPI tablets and desktops (above 1.25 dppx, such as Retina screens) play this one. |
+| `name-720.mp4` | The same film at 1280×720, for phones and standard-density screens (1.25 dppx or less, such as Windows at 100% or 125%). Optional, but it saves those visitors about two thirds of the download. |
 | `name.webp` | A still shown before the film plays, and to visitors who turn motion off. 1600×900. |
 
 Keep each film short (3–15 seconds) and under about 3 MB: a film starts the

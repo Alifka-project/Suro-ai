@@ -358,23 +358,33 @@ export function PromptConsole() {
           re-measure the page on every keystroke. */}
       <div className="relative overflow-hidden rounded-[1.75rem] glass-strong p-1.5 sm:rounded-[2rem]">
         {/* Slow gradient sweep along the console edge (stilled by the
-            reduced-motion rule in globals.css) */}
+            reduced-motion rule in globals.css). The gradient is on a strip
+            2.2× the ring's width that slides by transform, which the
+            compositor runs without repainting; the extra 2px keep the strip
+            over the ring's right edge at the far end of the sweep, where
+            Chrome rasterizes it a fraction of a pixel short. The loop is a
+            class, not an inline animation, so globals.css can pause it off
+            screen. */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 rounded-[1.75rem] opacity-70 sm:rounded-[2rem]"
+          className="pointer-events-none absolute inset-0 overflow-hidden rounded-[1.75rem] opacity-70 sm:rounded-[2rem]"
           style={{
             padding: "1.5px",
-            background:
-              "linear-gradient(115deg, rgb(7 102 163 / 0.55), rgb(65 176 204 / 0.5) 30%, rgb(142 209 196 / 0.5) 52%, rgb(181 171 230 / 0.55) 74%, rgb(253 156 194 / 0.6))",
-            backgroundSize: "220% 100%",
-            animation: "gradient-pan 9s ease-in-out infinite",
             WebkitMask:
               "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
             mask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
             WebkitMaskComposite: "xor",
             maskComposite: "exclude",
           }}
-        />
+        >
+          <div
+            className="absolute inset-y-0 left-0 w-[calc(220%+2px)] animate-ring-pan"
+            style={{
+              backgroundImage:
+                "linear-gradient(115deg, rgb(7 102 163 / 0.55), rgb(65 176 204 / 0.5) 30%, rgb(142 209 196 / 0.5) 52%, rgb(181 171 230 / 0.55) 74%, rgb(253 156 194 / 0.6))",
+            }}
+          />
+        </div>
 
         {/* The textarea itself is borderless, so keyboard focus is shown on
             this panel instead. */}
@@ -537,7 +547,7 @@ export function PromptConsole() {
                       setValue(prompt);
                       void run(prompt);
                     }}
-                    className="rounded-full border border-ink-200/80 bg-white/60 px-3.5 py-2 text-left text-[0.8rem] text-ink-600 backdrop-blur-sm transition-all duration-300 ease-out-expo hover:-translate-y-0.5 hover:border-aqua-400 hover:bg-white hover:text-ink-900 active:scale-[0.97]"
+                    className="rounded-full border border-ink-200/80 bg-white/60 px-3.5 py-2 text-left text-[0.8rem] text-ink-600 transition-all duration-300 ease-out-expo hover:-translate-y-0.5 hover:border-aqua-400 hover:bg-white hover:text-ink-900 active:scale-[0.97]"
                   >
                     {prompt}
                   </button>
@@ -741,7 +751,7 @@ export function PromptConsole() {
 
                       {/* Next step */}
                       <div className="mt-6 rounded-2xl bg-linear-to-br from-abyss-600 via-azure-500 to-lilac-500 p-[1px]">
-                        <div className="rounded-[calc(1rem-1px)] bg-white/95 p-4 backdrop-blur-sm sm:p-5">
+                        <div className="rounded-[calc(1rem-1px)] bg-white/95 p-4 sm:p-5">
                           <p className="text-[0.9rem] leading-relaxed text-ink-700">
                             <span className="font-semibold text-ink-900">
                               This is an outline.

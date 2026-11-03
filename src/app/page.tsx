@@ -10,6 +10,7 @@ import { BusinessFunctions } from "@/components/sections/BusinessFunctions";
 import { Services } from "@/components/sections/Services";
 import { About } from "@/components/sections/About";
 import { Faq } from "@/components/sections/Faq";
+import { PauseOffscreenLoops } from "@/components/ui/PauseOffscreenLoops";
 
 export default function Home() {
   return (
@@ -28,6 +29,7 @@ export default function Home() {
         <Faq />
       </main>
       <Footer />
+      <PauseOffscreenLoops />
     </>
   );
 }

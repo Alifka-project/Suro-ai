@@ -4,9 +4,11 @@
  * visitor scrolls through them, then the page moves on.
  *
  * To add a film, put its files in public/media/films/ and add an entry:
- *   name.mp4      H.264, 1920×1080 (16:9). Tablets and desktops play this one.
- *   name-720.mp4  The same film at 1280×720, for phones. Optional, but it
- *                 saves phone visitors about two thirds of the download.
+ *   name.mp4      H.264, 1920×1080 (16:9). HiDPI tablets and desktops (above
+ *                 1.25 dppx, such as Retina screens) play this one.
+ *   name-720.mp4  The same film at 1280×720, for phones and standard-density
+ *                 screens (1.25 dppx or less). Optional, but it saves those
+ *                 visitors about two thirds of the download.
  *   name.webp     A still for before it plays, 1600×900.
  * Keep each film short (3–15 s): it starts as the visitor reaches it.
  */
@@ -19,7 +21,7 @@ export type Film = {
   caption: string;
   /** The 1080p MP4. */
   src: string;
-  /** A 720p copy for phones, if there is one. */
+  /** A 720p copy for phones and standard-density screens, if there is one. */
   srcSmall?: string;
   /** Still shown before the film plays. */
   poster: string;

@@ -7,6 +7,7 @@ import {
   useMotionValueEvent,
   useScroll,
   useTransform,
+  useVelocity,
   type MotionValue,
 } from "framer-motion";
 import { ArrowDown, Pause, Play, RotateCcw, Volume2, VolumeX } from "lucide-react";
@@ -57,8 +58,11 @@ function useReducedMotionSetting() {
  * from the start when it is reached, muted.
  *
  * Every title and caption is in the HTML whichever film is showing. Films
- * play only while the section is on screen and start loading a screen
- * before it. With reduced motion nothing plays by itself: the stills show,
+ * play only while the section is on screen. They load only while the
+ * visitor's scroll is calm within a screen of the section, one at a time:
+ * the next film waits until the one on show has fully downloaded. So a visit
+ * that never scrolls, or a link's jump past the section, loads only the first
+ * film's still. With reduced motion nothing plays by itself: the stills show,
  * with a play button. The toggles meet WCAG 2.2.2 (pause, stop, hide).
  */
 export function FilmTour() {
@@ -71,7 +75,7 @@ function Tour() {
   const videos = useRef<(HTMLVideoElement | null)[]>([]);
   const reduce = useReducedMotionSetting();
 
-  const { scrollYProgress } = useScroll({
+  const { scrollY, scrollYProgress } = useScroll({
     target: trackRef,
     offset: ["start start", "end end"],
   });
@@ -80,8 +84,62 @@ function Tour() {
 
   /** The section covers the middle of the screen: films may play. */
   const inView = useInView(trackRef, { margin: "-30% 0px -30% 0px" });
-  /** Within a screen of the viewport: start loading. */
-  const near = useInView(trackRef, { margin: "100% 0px 100% 0px", once: true });
+  /** The section is within a screen of the viewport. */
+  const withinReach = useInView(trackRef, { margin: "100% 0px 100% 0px" });
+
+  // Whether the scroll has stayed under three screens a second for 100ms. A
+  // link's smooth jump (Talk to us, the nav, a deep link) crosses the section
+  // at five or more, so it never is, and loads no film on the way; scrolling
+  // to watch stays well under. It is false until the visitor first scrolls:
+  // the section starts at the fold, so a visit that never scrolls loads none.
+  const speed = useVelocity(scrollY);
+  const [calm, setCalm] = useState(false);
+  const calmTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useMotionValueEvent(speed, "change", (v) => {
+    if (Math.abs(v) > 3 * window.innerHeight) {
+      clearTimeout(calmTimer.current);
+      calmTimer.current = undefined;
+      setCalm(false);
+    } else if (calmTimer.current === undefined) {
+      calmTimer.current = setTimeout(() => setCalm(true), 100);
+    }
+  });
+  // A link's jump (Talk to us, the nav, a deep link to #contact) can start
+  // slowly enough to pass for calm, so the films also wait while one is
+  // under way: from the click, or the load, until its scroll comes to rest.
+  const [jumping, setJumping] = useState(false);
+  useEffect(() => {
+    let rest: ReturnType<typeof setTimeout> | undefined;
+    const settle = () => {
+      clearTimeout(rest);
+      rest = setTimeout(() => {
+        window.removeEventListener("scroll", settle);
+        setJumping(false);
+      }, 150);
+    };
+    const jump = () => {
+      setJumping(true);
+      window.addEventListener("scroll", settle, { passive: true });
+      settle();
+    };
+    const onClick = (e: MouseEvent) => {
+      const link = e.target instanceof Element ? e.target.closest("a") : null;
+      if (link?.hash && link.pathname === window.location.pathname) jump();
+    };
+    if (window.location.hash) jump();
+    document.addEventListener("click", onClick);
+    return () => {
+      document.removeEventListener("click", onClick);
+      window.removeEventListener("scroll", settle);
+      clearTimeout(rest);
+    };
+  }, []);
+
+  /** Films may load, and play once in view. */
+  const near = withinReach && calm && !jumping;
+  // Once they have, the stills stay put, so a fling never blanks the film on show.
+  const [stills, setStills] = useState(false);
+  if (near && !stills) setStills(true);
 
   // The visitor's own play/pause choice. Until they make one, films play by
   // themselves unless reduced motion is on.
@@ -93,6 +151,8 @@ function Tour() {
   const [playingFilm, setPlayingFilm] = useState<number | null>(null);
   const [endedFilm, setEndedFilm] = useState<number | null>(null);
   const [failed, setFailed] = useState<readonly number[]>([]);
+  /** Films that have fully downloaded. The next film waits for the one on show. */
+  const [buffered, setBuffered] = useState<readonly number[]>([]);
 
   const film = FILMS[active];
   const playing = playingFilm === active;
@@ -126,6 +186,9 @@ function Tour() {
       if (!v.paused) v.pause();
       return;
     }
+    // Racing past: play() would download the film. One already playing
+    // carries on.
+    if (!near) return;
     if (v.ended) return;
     v.play().then(
       () => setBlocked(false),
@@ -142,7 +205,23 @@ function Tour() {
         }
       },
     );
-  }, [active, inView, autoplay, broken]);
+  }, [active, inView, autoplay, broken, near]);
+
+  /**
+   * Marks film i as downloaded once a single buffered range covers the whole
+   * file. It reads the ranges themselves, so an early canplaythrough can't
+   * mark a film too soon.
+   */
+  function noteBuffered(i: number, v: HTMLVideoElement) {
+    const d = v.duration;
+    if (!Number.isFinite(d)) return;
+    for (let r = 0; r < v.buffered.length; r++) {
+      if (v.buffered.start(r) <= 0.1 && v.buffered.end(r) >= d - 0.1) {
+        setBuffered((cur) => (cur.includes(i) ? cur : [...cur, i]));
+        return;
+      }
+    }
+  }
 
   function play() {
     setChoice("play");
@@ -262,21 +341,34 @@ function Tour() {
                     playsInline
                     disablePictureInPicture
                     disableRemotePlayback
-                    poster={f.poster}
+                    poster={
+                      // Only the first still comes with the page (it is all a
+                      // no-JS visitor sees); the others wait for `near`.
+                      i === 0 || stills ? f.poster : undefined
+                    }
                     preload={
-                      // The film on show loads from a screen away; the one
-                      // after it only once the section is in view, so the
-                      // page's first load isn't spent on films not yet seen.
+                      // The film on show loads while `near` holds. The one
+                      // after it waits until the section is in view and the
+                      // film on show has fully downloaded (or failed), so the
+                      // two never share the connection and the page's first
+                      // load isn't spent on films not yet seen.
                       i === active
                         ? near
                           ? autoplay
                             ? "auto"
                             : "metadata"
                           : "none"
-                        : i === active + 1 && inView && autoplay
+                        : i === active + 1 &&
+                            inView &&
+                            near &&
+                            autoplay &&
+                            (buffered.includes(active) || failed.includes(active))
                           ? "auto"
                           : "none"
                     }
+                    onProgress={(e) => noteBuffered(i, e.currentTarget)}
+                    onSuspend={(e) => noteBuffered(i, e.currentTarget)}
+                    onCanPlayThrough={(e) => noteBuffered(i, e.currentTarget)}
                     onPlay={() => {
                       setPlayingFilm(i);
                       setEndedFilm((cur) => (cur === i ? null : cur));
@@ -287,8 +379,16 @@ function Tour() {
                       i === active ? "scale-100 opacity-100" : "scale-[1.035] opacity-0"
                     }`}
                   >
+                    {/* The 720p copy, for phones and for screens of 1.25 dppx
+                        or less. The frame is at most about 1076 CSS px wide,
+                        so at those densities the 1280 px file is at most 5%
+                        short of it. */}
                     {f.srcSmall && (
-                      <source src={f.srcSmall} type="video/mp4" media="(max-width: 767px)" />
+                      <source
+                        src={f.srcSmall}
+                        type="video/mp4"
+                        media="(max-width: 767px), (max-resolution: 1.25dppx)"
+                      />
                     )}
                     {/* A source that fails reports on itself, not on the
                         video, and the browser moves on to the next one, so

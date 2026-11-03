@@ -10,13 +10,16 @@ import "./globals.css";
  * the brand's designer — see fonts/SULOAI-FONT-README.txt. next/font/local
  * inlines the @font-face and preloads it, so there's no flash of fallback text
  * and no layout shift when it swaps in.
+ *
+ * Only Regular, Medium and Bold are loaded: nothing uses weight 300, and
+ * semibold (600) renders with Bold. Add SULOAI-Light.woff2 back here before
+ * using font-light, or it will render in Regular.
  */
 const suloai = localFont({
   variable: "--font-suloai",
   display: "swap",
   fallback: ["ui-sans-serif", "system-ui", "sans-serif"],
   src: [
-    { path: "./fonts/SULOAI-Light.woff2", weight: "300", style: "normal" },
     { path: "./fonts/SULOAI-Regular.woff2", weight: "400", style: "normal" },
     { path: "./fonts/SULOAI-Medium.woff2", weight: "500", style: "normal" },
     { path: "./fonts/SULOAI-Bold.woff2", weight: "700", style: "normal" },

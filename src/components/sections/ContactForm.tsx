@@ -5,6 +5,7 @@ import {
   useForm,
   useWatch,
   type FieldErrors,
+  type Resolver,
   type UseFormRegisterReturn,
 } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -22,7 +23,6 @@ import {
   Video,
 } from "lucide-react";
 import {
-  contactSchema,
   SERVICE_OPTIONS,
   NOT_SURE_OPTION,
   COMPANY_SIZES,
@@ -30,8 +30,8 @@ import {
   TIMELINES,
   BUDGETS,
   CONTACT_PREFERENCES,
-  type ContactInput,
-} from "@/lib/contact-schema";
+} from "@/lib/contact-options";
+import type { ContactInput } from "@/lib/contact-schema";
 import { PACKAGE_GROUPS, PACKAGES } from "@/lib/packages";
 import {
   CONTACT_HREF,
@@ -171,6 +171,46 @@ function ServiceChoice({
   );
 }
 
+type ContactResolver = Resolver<ContactInput>;
+
+let resolverPromise: Promise<ContactResolver> | null = null;
+
+/**
+ * The schema, and zod with it, is most of this form's JavaScript, so it loads
+ * only when the form is about to be used: once the card comes within 800px of
+ * the viewport, on a "Book a call" or "Talk to us" jump, or on first focus.
+ * A check that runs before it arrives waits for it.
+ */
+function loadResolver(): Promise<ContactResolver> {
+  resolverPromise ??= import("@/lib/contact-schema").then(
+    ({ contactSchema }) => zodResolver(contactSchema) as ContactResolver,
+    (error: unknown) => {
+      resolverPromise = null; // Retry on next use.
+      throw error;
+    }
+  );
+  return resolverPromise;
+}
+
+/**
+ * Never rejects: react-hook-form's handleSubmit awaits the resolver outside
+ * any try, so a rejection would leave the button on "Sending". If the schema
+ * can't load (offline, or a deploy replaced its chunk), the client checks are
+ * skipped and /api/contact, which validates with the same schema, answers.
+ */
+const contactResolver: ContactResolver = async (values, context, options) => {
+  try {
+    return await (await loadResolver())(values, context, options);
+  } catch {
+    return { values, errors: {} };
+  }
+};
+
+/** Starts the download without waiting for it. A failed one is retried on next use. */
+const prefetchResolver = () => {
+  loadResolver().catch(() => {});
+};
+
 export function ContactForm() {
   const [step, setStep] = useState(0);
   const [direction, setDirection] = useState(1);
@@ -206,7 +246,7 @@ export function ContactForm() {
     getValues,
     formState: { errors, isSubmitting },
   } = useForm<ContactInput>({
-    resolver: zodResolver(contactSchema),
+    resolver: contactResolver,
     mode: "onBlur",
     defaultValues: {
       clientType: "company",
@@ -236,6 +276,7 @@ export function ContactForm() {
     let focusTimer: ReturnType<typeof setTimeout> | undefined;
 
     function onIntent(event: Event) {
+      prefetchResolver();
       const intent = (event as CustomEvent<ContactIntent>).detail;
       if (!intent) return;
 
@@ -269,6 +310,25 @@ export function ContactForm() {
       clearTimeout(focusTimer);
     };
   }, [getValues, setValue, clearErrors]);
+
+  /** Load the schema while the visitor scrolls toward the form, so the first blur or Continue doesn't wait. */
+  useEffect(() => {
+    const card = cardRef.current;
+    if (!card || typeof IntersectionObserver === "undefined") {
+      prefetchResolver();
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        observer.disconnect();
+        prefetchResolver();
+      },
+      { rootMargin: "800px 0px" }
+    );
+    observer.observe(card);
+    return () => observer.disconnect();
+  }, []);
 
   /** After a step change: focus the field that needs attention, or the step's first field. */
   useEffect(() => {
@@ -586,6 +646,7 @@ export function ContactForm() {
       <form
         // Wrapped so handleSubmit runs on submit, not during render.
         onSubmit={(e) => handleSubmit(onSubmit, onInvalid)(e)}
+        onFocusCapture={prefetchResolver}
         noValidate
         aria-labelledby="contact-form-title"
         className="p-5 sm:p-7"

@@ -1,69 +1,29 @@
 import { z } from "zod";
-import { SERVICE_OPTIONS } from "./packages";
+import {
+  SERVICE_OPTIONS,
+  COMPANY_SIZES,
+  INDUSTRIES,
+  TIMELINES,
+  BUDGETS,
+  CONTACT_PREFERENCES,
+} from "./contact-options";
 
 /**
  * Shared by the client form and the API route, so validation can never drift
- * between the two. Every option list here is exported for the UI to render, so
- * adding a budget band is a one-line change.
- *
- * The service options are the packages' form labels ("Package 1: Automate")
- * plus "Not sure yet", defined once in packages.ts. They're what a lead stores
- * in the CRM and what the service agreement prints as its package reference.
+ * between the two. The option lists live in contact-options.ts, which has no
+ * zod in it: the form renders its options from there and loads this module
+ * (and zod with it) only when it's about to validate. They're re-exported
+ * here, so the route and the schema read from one place.
  */
-export { SERVICE_OPTIONS, NOT_SURE_OPTION } from "./packages";
-
-export const COMPANY_SIZES = [
-  "1–10 employees",
-  "11–50 employees",
-  "51–200 employees",
-  "201–1000 employees",
-  "1000+ employees",
-] as const;
-
-export const INDUSTRIES = [
-  "Manufacturing",
-  "Distribution & wholesale",
-  "Retail & e-commerce",
-  "Logistics & 3PL",
-  "Freight forwarding",
-  "Pharmaceutical & healthcare",
-  "Food & beverage",
-  "Automotive",
-  "Electronics",
-  "Construction & industrial",
-  "Agriculture",
-  "Energy & utilities",
-  "Financial services",
-  "Professional services",
-  "Real estate & property",
-  "Hospitality & tourism",
-  "Education",
-  "Public sector",
-  "Other",
-] as const;
-
-export const TIMELINES = [
-  "Urgent — within 30 days",
-  "This quarter",
-  "Next 3–6 months",
-  "Exploring / budgeting for later",
-] as const;
-
-export const BUDGETS = [
-  "Under $5,000",
-  "$5,000 – $15,000",
-  "$15,000 – $50,000",
-  "$50,000 – $150,000",
-  "$150,000+",
-  "Need guidance on budget",
-] as const;
-
-export const CONTACT_PREFERENCES = [
-  "Email",
-  "Phone call",
-  "WhatsApp",
-  "Video call",
-] as const;
+export {
+  SERVICE_OPTIONS,
+  NOT_SURE_OPTION,
+  COMPANY_SIZES,
+  INDUSTRIES,
+  TIMELINES,
+  BUDGETS,
+  CONTACT_PREFERENCES,
+} from "./contact-options";
 
 export const contactSchema = z
   .object({

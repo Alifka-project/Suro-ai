@@ -93,16 +93,24 @@
   --animate-aurora-slow: aurora 38s ease-in-out infinite reverse;
   --animate-float: float 9s ease-in-out infinite;
   --animate-float-slow: float 14s ease-in-out infinite;
-  --animate-drift: drift 20s linear infinite;
+  --animate-grid-drift: grid-drift 10.333s linear infinite;
   --animate-shimmer: shimmer 3.2s linear infinite;
   --animate-spin-slow: spin 22s linear infinite;
   --animate-pulse-ring: pulse-ring 3s ease-out infinite;
   --animate-marquee: marquee 42s linear infinite;
   --animate-caret: caret 1.05s steps(1) infinite;
+  --animate-ring-pan: ring-pan 9s ease-in-out infinite;
+  /* The hero's entrance keeps both fills. With backwards, the finished hero
+     text repaints as it hands back to its own style, and Chrome then reports
+     the headline as the page's largest paint (LCP) at the end of the
+     animation, not at first paint. */
   --animate-rise: rise 0.9s var(--ease-out-expo) both;
-  --animate-details-in: details-in 0.4s var(--ease-out-expo) both;
-  --animate-panel-in: panel-in 0.4s var(--ease-out-expo) both;
-  --animate-gradient-pan: gradient-pan 8s ease infinite;
+  /* The disclosure and panel entrances, which run only after a click, fill
+     backwards: the start keyframe holds through any delay, and the finished
+     element goes back to its own style, which the end keyframe already
+     matches. A forward fill would only keep each one on a compositor layer. */
+  --animate-details-in: details-in 0.4s var(--ease-out-expo) backwards;
+  --animate-panel-in: panel-in 0.4s var(--ease-out-expo) backwards;
 }
 
 @keyframes aurora {
@@ -128,12 +136,16 @@
   }
 }
 
-@keyframes drift {
+/* One .grid-field tile (62px) per loop, at 6px/s, so the loop has no seam.
+   It moves a layer, not background-position: the compositor can't run a
+   background-position animation, so the grid would repaint on the main
+   thread every frame. */
+@keyframes grid-drift {
   from {
-    background-position: 0 0;
+    transform: translate3d(0, 0, 0);
   }
   to {
-    background-position: 120px 120px;
+    transform: translate3d(62px, 62px, 0);
   }
 }
 
@@ -206,13 +218,16 @@
   }
 }
 
-@keyframes gradient-pan {
+/* The console ring's sweep, on a strip 2.2× the ring's width (plus 2px, see
+   PromptConsole.tsx): -54.5455% of the strip is -1.2× the ring, the offset
+   background-position: 100% gives a 220% background. */
+@keyframes ring-pan {
   0%,
   100% {
-    background-position: 0% 50%;
+    transform: translate3d(0, 0, 0);
   }
   50% {
-    background-position: 100% 50%;
+    transform: translate3d(-54.5455%, 0, 0);
   }
 }
 
@@ -349,15 +364,20 @@
 }
 
 @layer components {
-  /* Grain overlay used on large aurora fields */
-  .grain::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    opacity: 0.18;
-    mix-blend-mode: soft-light;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  /* Grain overlay used on large aurora fields. Desktop only (lg, 64rem and
+     up): on phones and tablets the soft-light blend over the moving aurora is
+     re-blended every frame, for a texture that changes no pixel by more than
+     4/255. */
+  @media (min-width: 64rem) {
+    .grain::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.18;
+      mix-blend-mode: soft-light;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+    }
   }
 
   /* Hairline grid, very light — the "protocol" texture */
@@ -571,6 +591,35 @@
   ::details-content {
     transition: none !important;
   }
+}
+
+/*
+ * Decorative loops pause while their section is off screen.
+ * PauseOffscreenLoops marks each `main > section` and the footer with
+ * data-offscreen while it is more than 200px out of view. Unlayered, so it
+ * beats the animate-* utilities. The loops are listed by class: `*` or
+ * [class*=animate-] here would invalidate whole sections each time one
+ * crosses the margin. Entrances (rise, panel-in, details-in) stay out.
+ * animate-spin is in because the console's button keeps its hidden spinner
+ * mounted. A new loop goes in this list, as a class: an inline `animation`
+ * style can't be paused from here.
+ */
+[data-offscreen]
+  :is(
+    .animate-aurora,
+    .animate-aurora-slow,
+    .animate-float,
+    .animate-float-slow,
+    .animate-grid-drift,
+    .animate-ring-pan,
+    .animate-marquee,
+    .animate-pulse-ring,
+    .motion-safe\:animate-pulse-ring,
+    .motion-safe\:animate-bounce,
+    .animate-caret,
+    .animate-spin
+  ) {
+  animation-play-state: paused;
 }
 
 /*

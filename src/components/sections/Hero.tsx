@@ -80,7 +80,7 @@ export function Hero() {
                 sentence to screen readers. */}
             <h1>
               <span
-                className={`inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/60 px-3.5 py-1.5 text-[0.78rem] font-medium tracking-normal text-ink-700 backdrop-blur-md ${RISE}`}
+                className={`inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/60 px-3.5 py-1.5 text-[0.78rem] font-medium tracking-normal text-ink-700 ${RISE}`}
               >
                 <span
                   aria-hidden="true"
@@ -121,7 +121,7 @@ export function Hero() {
                 return (
                   <li
                     key={pillar.key}
-                    className={`relative flex min-w-0 flex-col items-center gap-2 rounded-2xl border border-white/70 bg-white/55 p-2.5 backdrop-blur-md sm:items-start sm:gap-2.5 sm:p-3.5 ${RISE}`}
+                    className={`relative flex min-w-0 flex-col items-center gap-2 rounded-2xl border border-white/70 bg-white/55 p-2.5 sm:items-start sm:gap-2.5 sm:p-3.5 ${RISE}`}
                     style={delay(240 + i * 80)}
                   >
                     <span

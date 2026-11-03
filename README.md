@@ -220,6 +220,21 @@ Content is never gated on an animation completing — the hero's blueprint and C
 reveal on a timer, not on the typing finishing, so a backgrounded tab can't
 strand a visitor on a half-written answer.
 
+## Keeping the page light
+
+- **Loops animate `transform` or `opacity` only**, so the compositor runs them
+  without repainting. They pause while their section is off screen
+  (`PauseOffscreenLoops` marks it; the rule is in `globals.css`). A new loop
+  needs a class in that rule's list, not an inline `animation` style.
+- **Films load only when they're about to be watched**: once the visitor's
+  scroll is calm within a screen of the section, one film at a time. A visit
+  that never scrolls, or a link's jump past the section, loads none. Phones
+  and standard-density screens get the 720p files.
+- **The contact form's validation (zod) loads on demand**, as the visitor
+  nears the form, so it isn't in the page's first download. The option lists
+  live in `src/lib/contact-options.ts` for that reason; the server still
+  validates with the same schema.
+
 ---
 
 ## Admin dashboard

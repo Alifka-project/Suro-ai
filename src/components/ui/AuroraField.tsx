@@ -2,8 +2,9 @@
 
 /**
  * The signature surface: aurora blobs drifting behind a grain + grid overlay.
- * Purely decorative, GPU-composited (transform/opacity only), and frozen by the
- * reduced-motion block in globals.css.
+ * Purely decorative, GPU-composited (every loop animates transform only, the
+ * grid's drift included), and frozen by the reduced-motion block in
+ * globals.css.
  *
  * The blobs carry the brand palette, so they are deliberately saturated — a
  * light theme still needs the colour to read. `intensity` scales them down for
@@ -74,12 +75,16 @@ export function AuroraField({
           the palette back out */}
       <div className="absolute inset-0 bg-white/20" />
 
-      {/* Hairline grid */}
+      {/* Hairline grid. The fade and opacity stay on this still wrapper; only
+          the tiles inside move, on a layer one tile larger up and to the left
+          so it always covers the wrapper. */}
       {grid && (
         <div
-          className="absolute inset-0 grid-field animate-drift mask-fade-b"
+          className="absolute inset-0 overflow-hidden mask-fade-b"
           style={{ opacity: 0.45 * intensity }}
-        />
+        >
+          <div className="absolute -left-[62px] -top-[62px] right-0 bottom-0 grid-field animate-grid-drift" />
+        </div>
       )}
 
       {featherTop && (

@@ -49,7 +49,7 @@ export function CapabilityMarquee() {
   return (
     <section
       aria-labelledby="capabilities-heading"
-      className="group/marquee relative border-y border-ink-100/80 bg-white/50 py-5 backdrop-blur-sm"
+      className="group/marquee relative border-y border-ink-100/80 bg-white/50 py-5"
     >
       <h2 id="capabilities-heading" className="sr-only">
         Tools, systems and formats we work with
